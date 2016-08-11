@@ -3,8 +3,9 @@
 ## Introduction
 
 Hix removes the need for build.hxml files or command line arguments to the haxe compiler.
-Instead, the compilation flags are stored in the source code where the main class is located
-using special headers stored in comments near the top of the file.
+Instead, compilation flags are stored in the source code where the main class is located
+with special commands stored as comments near the top of the file. In addition, multiple build
+configurations can be configured and executed.
 
 ## Building
 
