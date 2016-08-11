@@ -467,7 +467,6 @@ class Hix {
 	static function PrintHelp()
 	{
 var inst: String = "
-
 Hix is a utility that lets you to store compile settings inside Haxe source files.			
 Put the start header near the top of your .hx file and add desired compile args:
 //$HEADER_START -main Main -neko example.n 
