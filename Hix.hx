@@ -22,12 +22,12 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.3";
+	static inline var VERSION = "0.31";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
 	static inline var SPECIAL_CHAR = "$";
-	static inline var DEFAULT_BUILD_NAME = "_";
+	static inline var DEFAULT_BUILD_NAME = "default";
 	
 	//Name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
 	var exe:String = "haxe";
@@ -111,10 +111,7 @@ class Hix {
 	{
 		if(!buildMap.exists(buildName) || buildMap[buildName].length == 0)
 		{
-			if(buildName == DEFAULT_BUILD_NAME)
-				Sys.println("[Hix] No compiler args found for: default");
-			else
-				Sys.println('[Hix] No compiler args found for: $buildName');
+			Sys.println('[Hix] No compiler args found for: $buildName');
 			return -1;
 		}
 		else
@@ -154,28 +151,25 @@ class Hix {
 						currentBuildArgs = IsStartHeader();
 						if(currentBuildArgs != null)
 						{
-							prevBuildName = currentBuildName;
 							trace("[Hix] Header Found!");
 							//Once the header is found, we begin searching for build arguments
 							//Note: Once the search for build args has begun, it will stop
 							//once the 1st non-comment line is reached.
-							if(currentBuildName != DEFAULT_BUILD_NAME)
-								trace('[Hix] Getting build args for: $currentBuildName');
-							else
-								trace("[Hix] Getting build args for: default");
+							trace('[Hix] Getting build args for: $currentBuildName');
+
 							state = State.SearchingForArgs;
 						}
 						else
 							//Look for any Pre-Header commmands
 							ParsePreHeaderCommands();
 					case State.SearchingForArgs:
-						if(!inComment && currentBuildArgs.length == 0)
+						if(!inComment && currentBuildArgs.length == 0) //Couldn't find anything
 						{
 							Sys.println("[Hix] Error: Unable to find any compiler args in the header!");
 							state = State.FinishFail;
 							break;
 						}
-						else if(!inComment && currentBuildArgs.length > 0)
+						else if(!inComment && currentBuildArgs.length > 0) //Found something
 						{
 							trace("[Hix] Success");
 
@@ -190,13 +184,14 @@ class Hix {
 							{
 								trace("[Hix] Success");
 
-								if(currentBuildName != DEFAULT_BUILD_NAME)
-									trace("[Hix] Getting args for: " + currentBuildName);
-								else
-									trace("[Hix] Getting args..");
-							
+								//Since it looks like we're in a start header
+								//create any builder we had previously stored
 								CreateBuilder(prevBuildName, currentBuildArgs);
+								//Now switch to this new current one
 								currentBuildArgs = newArgs;
+								prevBuildName = currentBuildName;
+
+								trace("[Hix] Getting args for: " + currentBuildName);
 							}
 							else
 							{
@@ -250,10 +245,7 @@ class Hix {
 
 		if(buildMap.exists(buildName))
 		{
-			if(buildName == DEFAULT_BUILD_NAME)
-				Sys.println('Error: Multiple default Build configs found.');
-			else
-				Sys.println('Error: Build config $buildName already exists!');
+			Sys.println('Error: Build config $buildName already exists!');
 			state = State.FinishFail;
 			return;
 		}
