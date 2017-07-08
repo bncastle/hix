@@ -4,7 +4,7 @@
 // build.hxml file or having to specify command line args every time you want to do a build.
 //
 //Author: Bryan Castleberry
-//Date: Jan 22,2015
+//Date: July 8,2017
 //
 //Command line compile to cpp: haxe -main Hix --no-traces -cpp hixcpp
 //Note: The above requires you have the haxe std library dlls installed on the system
@@ -22,7 +22,7 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.31";
+	static inline var VERSION = "0.32";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -34,14 +34,34 @@ class Hix {
 
 	static function main():Int 	
 	{
+
 		if(Sys.args().length == 0 )
 		{
-			Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
-			Sys.println('Hix.exe <inputFile.hx> [buildName] OR');			
-			Sys.println('Hix.exe -h for help');			
+			//Gets the current working directory
+			var cwd = Sys.getCwd();
+
+			//look for a .hx file with hix directives in it and run it
+			 var files = FileSystem.readDirectory(cwd);
+			 var filtered = files.filter(function(name){
+				var ext = ~/\.([^\.]+)$/i;
+				if(ext.match(name)){
+					return (ext.matched(1).toLowerCase()=="hx");
+				}
+				return false;
+			 });
+
+			 //If there is onlu 1 .hx file then try that
+			 //If, however there is more than one, look for a main.hx
+			 //and try that first, otherwise go through them sequentially
+			 for(f in filtered){
+				 Sys.println(f);
+			 }
+
+			Hix.PrintUsage();		
 			return 1;
 		}
 
+		//Check for any command line switches here
 		if(StringTools.startsWith(Sys.args()[0],"-h"))
 		{
 			Hix.PrintHelp();
@@ -454,6 +474,13 @@ class Hix {
 	         }
 	    }
 	    return cols;
+	}
+
+	static function PrintUsage()
+	{
+		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
+		Sys.println('Hix.exe <inputFile.hx> [buildName] OR');			
+		Sys.println('Hix.exe -h for help');	
 	}
 
 	static function PrintHelp()
