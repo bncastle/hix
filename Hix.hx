@@ -11,6 +11,7 @@
 //      where you want to use Hix. That should not be a problem.
 //
 import sys.io.File;
+import haxe.io.Path;
 import sys.FileSystem;
 
 enum State
@@ -25,6 +26,7 @@ class Hix {
 	static inline var VERSION = "0.32";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
+	static inline var HAXE_EXTENSION = ".hx";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
 	static inline var SPECIAL_CHAR = "$";
 	static inline var DEFAULT_BUILD_NAME = "default";
@@ -32,8 +34,134 @@ class Hix {
 	//Name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
 	var exe:String = "haxe";
 
+	//This stores any boolean flags sent as args
+	static var flags:Array<String> = new Array<String>();
+
+	static function error(msg:Dynamic)
+	{
+		Sys.println('Error: $msg');
+	}
+
+	static function log(msg:Dynamic)
+	{
+		Sys.println(msg);
+	}
+
+	static function GetFilesWithExt(dir:String, ext:String):Array<String>
+	{
+		var files = FileSystem.readDirectory(dir);
+		var filtered = files.filter(function(name)
+		{
+			return StringTools.endsWith(name, ext);
+		});
+
+		return filtered;
+	}
+
+	//Looks for and removes all boolean flags from the given array
+	//and puts them into the static flags array
+	static function ParseBooleanFlags(args:Array<String>)
+	{
+		var i = args.length -1;
+		while(i >= 0)
+		{
+			//A binary flag does not have an '='
+			if(StringTools.startsWith(args[i],"-") && args[i].indexOf("=") == -1)
+			{
+				//Remove any leading.trailing spaces
+				args[i] = StringTools.trim(args[i]);
+				flags.push(args[i].substr(1));
+				args.splice(i, 1);
+			}
+			i--;
+		}
+	}
+
+	//Returns the first .hx file and removes it from the array
+	//returns null otherwise
+	static function ParseFirstFileFromArgs(args:Array<String>, ext:String) : String
+	{
+		for(arg in args)
+		{
+			if(StringTools.endsWith(arg, ext)) 
+			{
+				args.remove(arg);
+				return arg;
+			}
+		}
+		return null;
+	}
+
+	//Returns the 1st non-filename and removes it from the array
+	//returns null, otherwise
+	static function ParseFirstNonFilename(args:Array<String>):String
+	{
+		var i = args.length -1;
+		while(i >= 0)
+		{
+			var p = new Path(args[i]);
+			if(p.ext == null)
+			{
+				var retVal = StringTools.trim(args[i]);
+				args.splice(i,1);
+				return retVal;
+			}
+			i--;
+		}
+		return null;
+	}
+
 	static function main():Int 	
 	{
+<<<<<<< HEAD
+		var inputFile:String = null;
+		var inputBuildName:String = DEFAULT_BUILD_NAME;
+		//Get the current working directory
+		var cwd = Sys.getCwd();
+
+		if(Sys.args().length == 0 )
+		{
+			//look for all .hx files
+			var hx_files = GetFilesWithExt(cwd, HAXE_EXTENSION);
+
+			//If there is only 1 .hx file then try that
+			if(hx_files.length == 1)
+				inputFile = hx_files[0];
+			else 
+			{
+				Hix.PrintUsage();		
+				return 1;
+			}
+		}
+		else
+		{
+			//Get any command line args
+			var args:Array<String> = Sys.args();
+			//Strip any bool flags from args
+			ParseBooleanFlags(args);
+			//look for and .hx file specified in the args
+			inputFile = ParseFirstFileFromArgs(args,HAXE_EXTENSION);
+			if(inputFile == null)
+			{
+				//look for all .hx files
+				var hx_files = GetFilesWithExt(cwd, HAXE_EXTENSION);
+				//If there is only 1 .hx file then try that
+				if(hx_files.length == 1)
+					inputFile = hx_files[0];
+				else
+				{
+					error('Found $hx_files.length $HAXE_EXTENSION files. Please specify which one to use.');
+					return 1;
+				}
+			}
+			//See if there is a build name specified
+			inputBuildName = ParseFirstNonFilename(args);
+			if(inputBuildName == null) inputBuildName = DEFAULT_BUILD_NAME;
+		}
+
+		//Check for any command line switches here
+		if(flags.indexOf("h") > -1)
+=======
 
 		if(Sys.args().length == 0 )
 		{
@@ -63,27 +191,48 @@ class Hix {
 
 		//Check for any command line switches here
 		if(StringTools.startsWith(Sys.args()[0],"-h"))
+>>>>>>> origin/master
 		{
 			Hix.PrintHelp();
 			return 1;
 		}
+		else if(flags.indexOf("u") > -1)
+		{
+			Hix.PrintUsage();
+			return 1;
+		}
 
-		//Get the input file name
-		var inputFile:String = Sys.args()[0];
-		var inputBuildName:String = DEFAULT_BUILD_NAME;
-
-		if(Sys.args().length > 1)
-			inputBuildName = Sys.args()[1];
+		//Are we missing an input file?
+		if(inputFile == null)
+		{
+			error('Unable to find a $HAXE_EXTENSION file.');
+			Hix.PrintUsage();
+			return 1;
+		}
 
 		//Check if file exists
 		if(!FileSystem.exists(inputFile))
 		{
-			Sys.println('[Hix] File: $inputFile does not exist!');
+			error('File: $inputFile does not exist!');
 			return 1;
 		}
 
 		var h = new Hix();
 		h.ParseFile(inputFile);
+
+		if(flags.indexOf("l") > -1)
+		{
+			if(h.buildMap.keys().hasNext())
+			{
+				log('Available Build labels in: $inputFile');
+				log('-----------------------');
+			}
+			for(buildName in h.buildMap.keys())
+			{
+				log('$buildName');
+			}
+			return 1;
+		}
 
 		if(h.state == FinishSuccess)
 			return h.Execute(inputBuildName);
@@ -137,9 +286,9 @@ class Hix {
 		else
 		{
 			var args = buildMap[buildName];
-			Sys.print("[Hix] Running: ");
-			Sys.println(exe + " " + args.join(" "));
-			Sys.println('');
+			log('[Hix] Running build label: $buildName');
+			log(exe + " " + args.join(" "));
+			log('');
 			return Sys.command(exe, args);
 		}
 	}
@@ -185,7 +334,7 @@ class Hix {
 					case State.SearchingForArgs:
 						if(!inComment && currentBuildArgs.length == 0) //Couldn't find anything
 						{
-							Sys.println("[Hix] Error: Unable to find any compiler args in the header!");
+							error("Unable to find any compiler args in the header!");
 							state = State.FinishFail;
 							break;
 						}
@@ -226,7 +375,6 @@ class Hix {
 		}
 		catch(ex:haxe.io.Eof) {}
 		reader.close();
-		//Sys.println(text);
 	}
 
 	function ProcessSpecialCommands(buildArgList: Array<String>)
@@ -265,7 +413,7 @@ class Hix {
 
 		if(buildMap.exists(buildName))
 		{
-			Sys.println('Error: Build config $buildName already exists!');
+			error('Build config $buildName already exists!');
 			state = State.FinishFail;
 			return;
 		}
@@ -358,7 +506,7 @@ class Hix {
 					if(cmd.length > 1 && cmd[1].length > 0)
 					{
 						exe = cmd[1];
-						Sys.println('Hix: exe changed to: ${cmd[1]}');
+						log('Hix: exe changed to: ${cmd[1]}');
 					}
 			}
 		}
@@ -476,11 +624,29 @@ class Hix {
 	    return cols;
 	}
 
+<<<<<<< HEAD
+	public function PrintValidBuilds()
+	{
+		Sys.println("Valid Builds");
+		Sys.println("============");
+		for(key in buildMap.keys()){
+			Sys.println(key);
+		}
+	}
+
+=======
+>>>>>>> origin/master
 	static function PrintUsage()
 	{
 		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
 		Sys.println('Hix.exe <inputFile.hx> [buildName] OR');			
+<<<<<<< HEAD
+		Sys.println('Hix.exe -l <inputFile.hx> prints valid builds');	
 		Sys.println('Hix.exe -h for help');	
+		Sys.println('Hix.exe -u for usage info');	
+=======
+		Sys.println('Hix.exe -h for help');	
+>>>>>>> origin/master
 	}
 
 	static function PrintHelp()
