@@ -130,6 +130,9 @@ class Hix {
 				inputFile = hx_files[0];
 			else 
 			{
+				if(hx_files.length > 1){
+					Sys.println('\n** Found ${hx_files.length} $HAXE_EXTENSION files. Please specify which one to use. **\n');
+				}
 				Hix.PrintUsage();		
 				return 1;
 			}
