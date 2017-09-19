@@ -25,7 +25,7 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.32";
+	static inline var VERSION = "0.33";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HAXE_EXTENSION = ".hx";
@@ -463,21 +463,24 @@ class Hix {
 		if(!inComment) return;
 
 		var cmd = new EReg(COMMAND_PREFIX + "\\s*([^\\n]*)$","i");
-
+		var keyVal = new EReg("\\s*([A-Za-z_][A-Za-z0-9_]+)\\s*=\\s*([^\\n]+)$","i");
 		if(cmd.match(text) && cmd.matched(1).indexOf('=') > -1) {
-			var cmd = cmd.matched(1).toLowerCase().split('=');
-			trace('[Hix] Found command: ${cmd[0]}');
-
-			switch(cmd[0]) 
+			if(keyVal.match(cmd.matched(1)))
 			{
-				//Ah, we have found the command that says to run a different .exe
-				//so change the exe to what is specified
-				case "exe":
-					if(cmd.length > 1 && cmd[1].length > 0)
-					{
-						exe = cmd[1];
-						log('Hix: exe changed to: ${cmd[1]}');
-					}
+				var key = keyVal.matched(1);
+				var val = keyVal.matched(2);
+				trace('[Hix] Found key value pair: ${key} = ${val}');
+				switch (key)
+				{
+					//Ah, we have found the command that says to run a different .exe
+					//so change the exe to what is specified
+					case "exe":
+						if(key.length > 1 && val.length > 0)
+						{
+							exe = val;
+							log('Hix: exe changed to: ${val}');
+						}
+				}
 			}
 		}
 	}
