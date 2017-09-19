@@ -113,7 +113,6 @@ class Hix {
 
 	static function main():Int 	
 	{
-<<<<<<< HEAD
 		var inputFile:String = null;
 		var inputBuildName:String = DEFAULT_BUILD_NAME;
 		//Get the current working directory
@@ -161,37 +160,6 @@ class Hix {
 
 		//Check for any command line switches here
 		if(flags.indexOf("h") > -1)
-=======
-
-		if(Sys.args().length == 0 )
-		{
-			//Gets the current working directory
-			var cwd = Sys.getCwd();
-
-			//look for a .hx file with hix directives in it and run it
-			 var files = FileSystem.readDirectory(cwd);
-			 var filtered = files.filter(function(name){
-				var ext = ~/\.([^\.]+)$/i;
-				if(ext.match(name)){
-					return (ext.matched(1).toLowerCase()=="hx");
-				}
-				return false;
-			 });
-
-			 //If there is onlu 1 .hx file then try that
-			 //If, however there is more than one, look for a main.hx
-			 //and try that first, otherwise go through them sequentially
-			 for(f in filtered){
-				 Sys.println(f);
-			 }
-
-			Hix.PrintUsage();		
-			return 1;
-		}
-
-		//Check for any command line switches here
-		if(StringTools.startsWith(Sys.args()[0],"-h"))
->>>>>>> origin/master
 		{
 			Hix.PrintHelp();
 			return 1;
@@ -624,7 +592,6 @@ class Hix {
 	    return cols;
 	}
 
-<<<<<<< HEAD
 	public function PrintValidBuilds()
 	{
 		Sys.println("Valid Builds");
@@ -634,19 +601,13 @@ class Hix {
 		}
 	}
 
-=======
->>>>>>> origin/master
 	static function PrintUsage()
 	{
 		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
 		Sys.println('Hix.exe <inputFile.hx> [buildName] OR');			
-<<<<<<< HEAD
 		Sys.println('Hix.exe -l <inputFile.hx> prints valid builds');	
 		Sys.println('Hix.exe -h for help');	
 		Sys.println('Hix.exe -u for usage info');	
-=======
-		Sys.println('Hix.exe -h for help');	
->>>>>>> origin/master
 	}
 
 	static function PrintHelp()
