@@ -140,6 +140,19 @@ class Hix {
 			var args:Array<String> = Sys.args();
 			//Strip any bool flags from args
 			ParseBooleanFlags(args);
+
+			//Check for any command line switches here
+			if(flags.indexOf("h") > -1)
+			{
+				Hix.PrintHelp();
+				return 1;
+			}
+			else if(flags.indexOf("u") > -1)
+			{
+				Hix.PrintUsage();
+				return 1;
+			}
+
 			//look for and .hx file specified in the args
 			inputFile = ParseFirstFileFromArgs(args,HAXE_EXTENSION);
 			if(inputFile == null)
@@ -158,18 +171,6 @@ class Hix {
 			//See if there is a build name specified
 			inputBuildName = ParseFirstNonFilename(args);
 			if(inputBuildName == null) inputBuildName = DEFAULT_BUILD_NAME;
-		}
-
-		//Check for any command line switches here
-		if(flags.indexOf("h") > -1)
-		{
-			Hix.PrintHelp();
-			return 1;
-		}
-		else if(flags.indexOf("u") > -1)
-		{
-			Hix.PrintUsage();
-			return 1;
 		}
 
 		//Are we missing an input file?
