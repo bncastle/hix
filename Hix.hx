@@ -25,7 +25,7 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.33";
+	static inline var VERSION = "0.34";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HAXE_EXTENSION = ".hx";
@@ -208,10 +208,14 @@ class Hix {
 			return 1;
 		}
 
-		if(h.state == FinishSuccess)
+		if(h.state == FinishSuccess){
+			trace("File successfully parsed. Executing...");
 			return h.Execute(inputBuildName);
-		else
+		}
+		else{
+			error("There was a problem!");
 			return 1;
+		}
 	}
 
 	//Read-only property for the current state of the parser
@@ -254,7 +258,7 @@ class Hix {
 	{
 		if(!buildMap.exists(buildName) || buildMap[buildName].length == 0)
 		{
-			Sys.println('[Hix] No compiler args found for: $buildName');
+			error('[Hix] No compiler args found for: $buildName');
 			return -1;
 		}
 		else
@@ -315,18 +319,17 @@ class Hix {
 						else if(!inComment && currentBuildArgs.length > 0) //Found something
 						{
 							trace("[Hix] Success");
-
 							CreateBuilder(currentBuildName, currentBuildArgs);
 							state = State.FinishSuccess;
 							break;
 						}
 						else //We're in a comment
 						{
+							trace("[Hix] Serching a comment");
 							var newArgs = IsStartHeader();
 							if(newArgs != null)
 							{
 								trace("[Hix] Success");
-
 								//Since it looks like we're in a start header
 								//create any builder we had previously stored
 								CreateBuilder(prevBuildName, currentBuildArgs);
@@ -339,7 +342,14 @@ class Hix {
 							else
 							{
 								//we are in a comment, lets see if there is text here if there is we assume it is a command arg
-								currentBuildArgs = currentBuildArgs.concat(GrabArgs(text));
+								//If, however, the comment is empty, then move on
+								var grabbedArgs = GrabArgs(text);
+								if(grabbedArgs != null && grabbedArgs.length > 0)
+									currentBuildArgs = currentBuildArgs.concat(grabbedArgs);
+								// else{
+								// 	error('Unable to grab args. Offending text:\n${text}');
+								// 	state = State.FinishFail;
+								// }
 							}
 						}
 					case State.FinishSuccess:
