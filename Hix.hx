@@ -149,7 +149,7 @@ class Hix {
 					inputFile = hx_files[0];
 				else
 				{
-					error('Found $hx_files.length $HAXE_EXTENSION files. Please specify which one to use.');
+					error('Found ${hx_files.length} $HAXE_EXTENSION files. Please specify which one to use.');
 					return 1;
 				}
 			}
