@@ -10,6 +10,8 @@
 //Note: The above requires you have the haxe std library dlls installed on the system
 //      where you want to use Hix. That should not be a problem.
 //
+//::hix       -main Hix  -cpp bin --no-traces -dce full
+//::hix:debug -main Hix  -cpp bin
 import sys.io.File;
 import haxe.io.Path;
 import sys.FileSystem;
