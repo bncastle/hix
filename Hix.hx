@@ -25,13 +25,14 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.34";
+	static inline var VERSION = "0.35";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
-	static inline var HAXE_EXTENSION = ".hx";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
 	static inline var SPECIAL_CHAR = "$";
+	static inline var HX_EXT = ".hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
+	static var VALID_EXTENSIONS = [".hx", ".cs",".js",".ts"];
 	
 	//Name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
 	var exe:String = "haxe";
@@ -54,7 +55,7 @@ class Hix {
 		var files = FileSystem.readDirectory(dir);
 		var filtered = files.filter(function(name)
 		{
-			return StringTools.endsWith(name, ext);
+			return ext == null || StringTools.endsWith(name, ext);
 		});
 
 		return filtered;
@@ -81,15 +82,13 @@ class Hix {
 
 	//Returns the first .hx file and removes it from the array
 	//returns null otherwise
-	static function ParseFirstFileFromArgs(args:Array<String>, ext:String) : String
+	static function GetFirstValidFileFromArgs(args:Array<String>) : String
 	{
 		for(arg in args)
 		{
-			if(StringTools.endsWith(arg, ext)) 
-			{
-				args.remove(arg);
+			var fullName = sys.FileSystem.fullPath(arg);
+			if(sys.FileSystem.exists(fullName))
 				return arg;
-			}
 		}
 		return null;
 	}
@@ -113,6 +112,34 @@ class Hix {
 		return null;
 	}
 
+	static function FindFirstFileInDirWithExt(currentDirectory:String, ext:String) : String
+	{
+		//look for all files matching the given extension
+		var files = GetFilesWithExt(currentDirectory, ext);
+		if (files == null) return null;
+
+		//If there is only 1 .hx file then return it
+		if(files.length == 1)
+			return files[0];
+		else 
+		{
+			if(files.length > 1){
+				error('\n** Found ${files.length} files with extension $ext. Please specify which one to use. **\n');
+			}
+			return null;
+		}
+	}
+
+	static function FindFirstFileInValidExts(currentDirectory:String) : String
+	{
+		for(e in VALID_EXTENSIONS)
+		{
+			var filename = FindFirstFileInDirWithExt(currentDirectory, e);
+			if(filename != null) return filename;
+		}
+		return null;
+	}
+
 	static function main():Int 	
 	{
 		var inputFile:String = null;
@@ -122,25 +149,21 @@ class Hix {
 
 		if(Sys.args().length == 0 )
 		{
-			//look for all .hx files
-			var hx_files = GetFilesWithExt(cwd, HAXE_EXTENSION);
-
-			//If there is only 1 .hx file then try that
-			if(hx_files.length == 1)
-				inputFile = hx_files[0];
-			else 
+			//look for any .hx file in the current directory
+			inputFile = FindFirstFileInValidExts(cwd);
+			if(inputFile == null)
 			{
-				if(hx_files.length > 1){
-					Sys.println('\n** Found ${hx_files.length} $HAXE_EXTENSION files. Please specify which one to use. **\n');
-				}
-				Hix.PrintUsage();		
+				PrintUsage();
 				return 1;
 			}
+			else
+				log('Trying file: $inputFile');
 		}
 		else
 		{
 			//Get any command line args
 			var args:Array<String> = Sys.args();
+
 			//Strip any bool flags from args
 			ParseBooleanFlags(args);
 
@@ -156,21 +179,21 @@ class Hix {
 				return 1;
 			}
 
-			//look for and .hx file specified in the args
-			inputFile = ParseFirstFileFromArgs(args,HAXE_EXTENSION);
+			//look for the first VALID filename from the args
+			inputFile = GetFirstValidFileFromArgs(args);
 			if(inputFile == null)
 			{
-				//look for all .hx files
-				var hx_files = GetFilesWithExt(cwd, HAXE_EXTENSION);
-				//If there is only 1 .hx file then try that
-				if(hx_files.length == 1)
-					inputFile = hx_files[0];
-				else
+				//look for any .hx file in the current directory
+				inputFile = FindFirstFileInValidExts(cwd);
+				if(inputFile == null)
 				{
-					error('Found ${hx_files.length} $HAXE_EXTENSION files. Please specify which one to use.');
+					PrintUsage();
 					return 1;
 				}
+				else
+					log('Trying file: $inputFile');
 			}
+
 			//See if there is a build name specified
 			inputBuildName = ParseFirstNonFilename(args);
 			if(inputBuildName == null) inputBuildName = DEFAULT_BUILD_NAME;
@@ -179,7 +202,7 @@ class Hix {
 		//Are we missing an input file?
 		if(inputFile == null)
 		{
-			error('Unable to find a $HAXE_EXTENSION file.');
+			error('Unable to find any valid files!');
 			Hix.PrintUsage();
 			return 1;
 		}
@@ -212,7 +235,12 @@ class Hix {
 			trace("File successfully parsed. Executing...");
 			return h.Execute(inputBuildName);
 		}
+		else if(h.state == SearchingForHeader){
+			error("Unable to find a hix header!");
+			return 1;
+		}
 		else{
+			trace('Parser State: ${h.state}');
 			error("There was a problem!");
 			return 1;
 		}
@@ -278,6 +306,7 @@ class Hix {
 	{
 		var currentBuildArgs:Array<String> = null;
 		var prevBuildName:String = DEFAULT_BUILD_NAME;
+		var fileExt = "." + fileName.split(".")[1];
 		inComment = false;
 		multilineComment = false;
 		filename = fileName;
@@ -318,14 +347,23 @@ class Hix {
 						}
 						else if(!inComment && currentBuildArgs.length > 0) //Found something
 						{
-							trace("[Hix] Success");
-							CreateBuilder(currentBuildName, currentBuildArgs);
-							state = State.FinishSuccess;
+							if(fileExt != HX_EXT && exe == "haxe")
+							{
+								trace("[Hix] Error: Non-Haxe src file didnt specify exe!");
+								error('Non-haxe src files must set executable with: //${COMMAND_PREFIX}exe=<exe_name>! Currently set to: $exe');
+								state = State.FinishFail;
+							}
+							else
+							{
+								trace("[Hix] Success");
+								CreateBuilder(currentBuildName, currentBuildArgs);
+								state = State.FinishSuccess;
+							}
 							break;
 						}
 						else //We're in a comment
 						{
-							trace("[Hix] Serching a comment");
+							trace("[Hix] Searching a comment");
 							var newArgs = IsStartHeader();
 							if(newArgs != null)
 							{
