@@ -661,8 +661,8 @@ class Hix {
 	static function PrintUsage()
 	{
 		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
-		Sys.println('Hix.exe <inputFile.hx> [buildName] OR');			
-		Sys.println('Hix.exe -l <inputFile.hx> prints valid builds');	
+		Sys.println('Hix.exe <inputFile> [buildName] OR');			
+		Sys.println('Hix.exe -l <inputFile> prints valid builds');	
 		Sys.println('Hix.exe -h for help');	
 		Sys.println('Hix.exe -u for usage info');	
 	}
@@ -670,34 +670,36 @@ class Hix {
 	static function PrintHelp()
 	{
 var inst: String = "
-Hix is a utility that lets you to store compile settings inside Haxe source files.			
-Put the start header near the top of your .hx file and add desired compile args:
-//$HEADER_START -main Main -neko example.n 
+Hix is a utility that lets you to store compile settings inside of source files.
+Currently supported languages are: ::ValidExtensions::	
+Put the start header near the top of your source file and add desired compile args:
+//::HixHeader:: -main Main -neko example.n 
 If you want, you can put the args on multiple lines:
-//$HEADER_START
+//::HixHeader::
 //-main Main
 //-neko hi.n
 Or you can put it them a multi-line comment:
 /*
-$HEADER_START
+::HixHeader::
 -main Main
 -neko hi.n
 */
 
-Hix also supports multiple build configs. Want to be able
-to build either a cpp or neko target? Ok.
-//$HEADER_START::target1 -main Main --no-traces -dce full -cpp bin
-//$HEADER_START:::target2 -main HR --no-traces -dce full -neko hr.n
+Hix also supports multiple build configs.
+For example, in a haxe .hx file you can specify both cpp and neko target builds. 
+
+//::HixHeader:::target1 -main Main --no-traces -dce full -cpp bin
+//::HixHeader:::target2 -main HR --no-traces -dce full -neko hr.n
 
 Then invoke your desired build config by adding the name of the config (which
 in this case is either target1 or target2):
-hix Main.hx target1 <- Builds the cpp target
-hix Main.hx target2 <- Builds the neko target
+hix Main.hx target1 <- Builds target1
+hix Main.hx target2 <- Builds target2
 
 Then compile by running:
-hix <inputFile.hx>
+hix <inputFile>
 
-No more hxml build files needed!
+No more hxml or makefiles needed!
 
 Special arguments:
 $filename -> inserts the name of the current file into the args list
@@ -710,7 +712,9 @@ by placing a special command BEFORE the start header:
 
 =============================================================================
 			";
-            inst = StringTools.replace(inst,"$HEADER_START", HEADER_START );
-            Sys.print(inst);
+			var params = {HixHeader: HEADER_START, ValidExtensions: VALID_EXTENSIONS.join(" ")};
+			var template = new haxe.Template(inst);
+            var output = template.execute(params);
+            Sys.print(output);
 	}
 }
