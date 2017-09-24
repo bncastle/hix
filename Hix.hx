@@ -25,7 +25,7 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.35";
+	static inline var VERSION = "0.36";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -36,9 +36,6 @@ class Hix {
 	
 	//Name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
 	var exe:String = "haxe";
-
-	//This stores any boolean flags sent as args
-	static var flags:Array<String> = new Array<String>();
 
 	static function error(msg:Dynamic)
 	{
@@ -63,8 +60,9 @@ class Hix {
 
 	//Looks for and removes all boolean flags from the given array
 	//and puts them into the static flags array
-	static function ParseBooleanFlags(args:Array<String>)
+	static function ParseArgOptions(args:Array<String>): Array<String>
 	{
+		var flags = new Array<String>();
 		var i = args.length -1;
 		while(i >= 0)
 		{
@@ -78,6 +76,7 @@ class Hix {
 			}
 			i--;
 		}
+		return flags;
 	}
 
 	//Returns the first .hx file and removes it from the array
@@ -140,10 +139,24 @@ class Hix {
 		return null;
 	}
 
+	//Looks for the given string within the specified arry
+	//if it is found it is removed and true is returned
+	//
+	static function ProcessFlag(argName: String, args:Array<String>):Bool
+	{
+		var index = args.indexOf(argName);
+		if(index > -1){
+			args.splice(index, 1);
+			return true;
+		}
+		return false;
+	}
+
 	static function main():Int 	
 	{
 		var inputFile:String = null;
 		var inputBuildName:String = DEFAULT_BUILD_NAME;
+
 		//Get the current working directory
 		var cwd = Sys.getCwd();
 
@@ -159,45 +172,43 @@ class Hix {
 			else
 				log('Trying file: $inputFile');
 		}
-		else
+
+		//Get any command line args
+		var args:Array<String> = Sys.args();
+
+		//Strip any bool flags from args
+		var flags = ParseArgOptions(args);
+
+		//Check for any command line switches here
+		if(ProcessFlag("h", flags))
 		{
-			//Get any command line args
-			var args:Array<String> = Sys.args();
+			Hix.PrintHelp();
+			return 1;
+		}
+		else if(ProcessFlag("u", flags))
+		{
+			Hix.PrintUsage();
+			return 1;
+		}
 
-			//Strip any bool flags from args
-			ParseBooleanFlags(args);
-
-			//Check for any command line switches here
-			if(flags.indexOf("h") > -1)
-			{
-				Hix.PrintHelp();
-				return 1;
-			}
-			else if(flags.indexOf("u") > -1)
-			{
-				Hix.PrintUsage();
-				return 1;
-			}
-
-			//look for the first VALID filename from the args
-			inputFile = GetFirstValidFileFromArgs(args);
+		//look for the first VALID filename from the args
+		inputFile = GetFirstValidFileFromArgs(args);
+		if(inputFile == null)
+		{
+			//look for any .hx file in the current directory
+			inputFile = FindFirstFileInValidExts(cwd);
 			if(inputFile == null)
 			{
-				//look for any .hx file in the current directory
-				inputFile = FindFirstFileInValidExts(cwd);
-				if(inputFile == null)
-				{
-					PrintUsage();
-					return 1;
-				}
-				else
-					log('Trying file: $inputFile');
+				PrintUsage();
+				return 1;
 			}
-
-			//See if there is a build name specified
-			inputBuildName = ParseFirstNonFilename(args);
-			if(inputBuildName == null) inputBuildName = DEFAULT_BUILD_NAME;
+			else
+				log('Trying file: $inputFile');
 		}
+
+		//See if there is a build name specified
+		inputBuildName = ParseFirstNonFilename(args);
+		if(inputBuildName == null) inputBuildName = DEFAULT_BUILD_NAME;
 
 		//Are we missing an input file?
 		if(inputFile == null)
@@ -217,16 +228,20 @@ class Hix {
 		var h = new Hix();
 		h.ParseFile(inputFile);
 
-		if(flags.indexOf("l") > -1)
+		if(ProcessFlag("l", flags))
 		{
 			if(h.buildMap.keys().hasNext())
 			{
 				log('Available Build labels in: $inputFile');
 				log('-----------------------');
+				for(buildName in h.buildMap.keys())
+				{
+					log('$buildName');
+				}
 			}
-			for(buildName in h.buildMap.keys())
+			else
 			{
-				log('$buildName');
+				error('No build instructions found in: $inputFile');
 			}
 			return 1;
 		}
@@ -268,15 +283,6 @@ class Hix {
 	public function new() 
 	{
 		buildMap = new Map<String,Array<String>>();
-	}
-
-	function Clear(arr:Array<Dynamic>)
-	{
-		#if (cpp || php)
-			arr.splice(0, arr.length);
-		#else
-			untyped arr.length = 0;
-		#end
 	}
 
 	//
@@ -349,7 +355,6 @@ class Hix {
 						{
 							if(fileExt != HX_EXT && exe == "haxe")
 							{
-								trace("[Hix] Error: Non-Haxe src file didnt specify exe!");
 								error('Non-haxe src files must set executable with: //${COMMAND_PREFIX}exe=<exe_name>! Currently set to: $exe');
 								state = State.FinishFail;
 							}
@@ -435,7 +440,7 @@ class Hix {
 
 		if(buildMap.exists(buildName))
 		{
-			error('Build config $buildName already exists!');
+			error('Found duplicate build name: $buildName in $filename!');
 			state = State.FinishFail;
 			return;
 		}
