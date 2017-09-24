@@ -5,8 +5,10 @@
     ExeName= hix.exe
 --tasks 
     build = haxe build.hxml
-    _pack = :UPX: :DestDir:\:ExeName:
-    _delete = if exist :DestDir:\:ExeName:.old del :DestDir:\:ExeName:.old
-    _rename = if exist :DestDir:\:ExeName: ren :DestDir:\:ExeName: :ExeName:.old
-    _deploy = copy /Y .\bin\:ExeName: :DestDir:
-    buildDeploy = [:build, :_delete, :_rename, :_deploy :_pack]
+    _pack = :UPX: .\bin\:ExeName:
+    _deploy = [
+        if exist :DestDir:\:ExeName:.old del :DestDir:\:ExeName:.old
+        if exist :DestDir:\:ExeName: ren :DestDir:\:ExeName: :ExeName:.old
+        copy /Y .\bin\:ExeName: :DestDir:
+    ]
+    buildDeploy = [:build, :_pack, :_deploy]
