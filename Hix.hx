@@ -25,7 +25,7 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.36";
+	static inline var VERSION = "0.37";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -33,9 +33,30 @@ class Hix {
 	static inline var HX_EXT = ".hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static var VALID_EXTENSIONS = [".hx", ".cs",".js",".ts"];
+	//The executable key
+	static inline var EXE = "exe";
+
+	//This is where we store any keyValue pairs we find before the hix header is found
+	var keyValues:Map<String,String>;
+
+	//Read-only property for the current state of the parser
+	public var state(null,default):State = SearchingForHeader;
+
+	//true if we are currently in a comment, false otherwise
+	var inComment:Bool = false;
 	
-	//Name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
-	var exe:String = "haxe";
+	//Tells us if we are in a multi-line comment
+	var multilineComment:Bool = false;
+
+	//The name of the file under examination
+	var filename:String;
+
+	//The current line of text from the input file
+	var text:String;
+
+	var currentBuildName:String = DEFAULT_BUILD_NAME;
+
+	var buildMap: Map<String,Array<String>>;
 
 	static function error(msg:Dynamic)
 	{
@@ -261,28 +282,13 @@ class Hix {
 		}
 	}
 
-	//Read-only property for the current state of the parser
-	public var state(null,default):State = SearchingForHeader;
-
-	//true if we are currently in a comment, false otherwise
-	var inComment:Bool = false;
-	
-	//Tells us if we are in a multi-line comment
-	var multilineComment:Bool = false;
-
-	//The name of the file under examination
-	var filename:String;
-
-	//The current line of text from the input file
-	var text:String;
-
-	var currentBuildName:String = DEFAULT_BUILD_NAME;
-
-	var buildMap: Map<String,Array<String>>;
-
 	public function new() 
 	{
 		buildMap = new Map<String,Array<String>>();
+		keyValues = new Map<String,String>();
+
+		//Set the default name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
+		keyValues[EXE] = "haxe";
 	}
 
 	//
@@ -297,7 +303,17 @@ class Hix {
 		}
 		else
 		{
-			var args = buildMap[buildName];
+			var args:Array<String> = [];
+			//Check if there are any pre args
+			if (keyValues.exists("preArgs"))
+			{
+				args = keyValues["preArgs"].split(" ");
+				log('Appending PreArgs: ${keyValues["preArgs"]}');
+			}
+			//Add the build args
+			args = args.concat(buildMap[buildName]);
+
+			var exe = keyValues[EXE];
 			log('[Hix] Running build label: $buildName');
 			log(exe + " " + args.join(" "));
 			log('');
@@ -353,9 +369,9 @@ class Hix {
 						}
 						else if(!inComment && currentBuildArgs.length > 0) //Found something
 						{
-							if(fileExt != HX_EXT && exe == "haxe")
+							if(fileExt != HX_EXT && keyValues[EXE] == "haxe")
 							{
-								error('Non-haxe src files must set executable with: //${COMMAND_PREFIX}exe=<exe_name>! Currently set to: $exe');
+								error('Non-haxe src files must set executable with: //${COMMAND_PREFIX}exe=<exe_name>! Currently set to: ${keyValues[EXE]}');
 								state = State.FinishFail;
 							}
 							else
@@ -436,7 +452,7 @@ class Hix {
 
 	function CreateBuilder(buildName:String, args:Array<String>)
 	{
-		trace('Create builder for $buildName');
+		trace('Create builder for $buildName\n');
 
 		if(buildMap.exists(buildName))
 		{
@@ -524,20 +540,14 @@ class Hix {
 		if(cmd.match(text) && cmd.matched(1).indexOf('=') > -1) {
 			if(keyVal.match(cmd.matched(1)))
 			{
-				var key = keyVal.matched(1);
-				var val = keyVal.matched(2);
+				var key = StringTools.rtrim(keyVal.matched(1));
+				var val = StringTools.rtrim(keyVal.matched(2));
 				trace('[Hix] Found key value pair: ${key} = ${val}');
-				switch (key)
-				{
-					//Ah, we have found the command that says to run a different .exe
-					//so change the exe to what is specified
-					case "exe":
-						if(key.length > 1 && val.length > 0)
-						{
-							exe = val;
-							log('Hix: exe changed to: ${val}');
-						}
-				}
+				//Set the key value pair
+				keyValues[key] = val;
+
+				if(key == EXE)
+					log('Hix: exe changed to: ${val}');
 			}
 		}
 	}
