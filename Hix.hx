@@ -25,7 +25,7 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.37";
+	static inline var VERSION = "0.38";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -424,28 +424,35 @@ class Hix {
 	{
 		//DO any string search/replace here
 		//A special string starts with '$' and can contain any chars except for whitespace
-		var sp = new EReg("^\\$([^\\s]+)", "i");
+		//var sp = new EReg("^\\$([^\\s]+)", "i");
+		var sp = new EReg("\\$\\[([^\\]]+)\\]", "i");
 		for (i in 0...buildArgList.length) 
 		{
 			if(sp.match(buildArgList[i]))
 			{
 				//grab the special text. Split it by the '=' sign
 				//so any parameters come after the =
-				var special = sp.matched(1).toLowerCase().split('=');
 
-				//Process special commands here
-				switch (special[0])
-				{
-					case "filename":
-						buildArgList[i] = filename;
-					case "datetime":
-						var date = Date.now();
-						//No date parameters? Ok, just do defaul Month/Day/Year
-						if(special.length == 1)
-							buildArgList[i] = DateTools.format(date,"%m/%e/%Y_%H:%M:%S");
-						else
-							buildArgList[i] = DateTools.format(date,special[1]);
-				}
+				buildArgList[i] = sp.map(buildArgList[i], function(r){
+					var matched = r.matched(1);
+					//Process special commands here
+					switch (matched)
+					{
+						case "filename":return filename;
+						//Filename without the extension
+						case "filenameNoExt":return filename.split(".")[0];
+						case "datetime":
+							var date = Date.now();
+							var cmd = matched.split('=');
+							//No date parameters? Ok, just do defaul Month/Day/Year
+							if(cmd.length == 1)
+								return DateTools.format(date,"%m/%e/%Y_%H:%M:%S");
+							else
+								return DateTools.format(date,cmd[1]);
+						default:
+							return r.matched(0); 
+					}
+				});
 			}
 		}
 	}
@@ -717,9 +724,10 @@ hix <inputFile>
 No more hxml or makefiles needed!
 
 Special arguments:
-$filename -> inserts the name of the current file into the args list
-$datetime<=optional strftime format specification> ->Note not all strftime settings are supported
-$datetime -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
+$[filename] -> gets the name of the current file
+$[filenameNoExt] -> gets the name of the current file without the extension
+$[datetime=<optional strftime format specification>] ->Note not all strftime settings are supported
+$[datetime] -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
 
 You can also change the program that is executed with the args (by default it is haxe)
 by placing a special command BEFORE the start header:
