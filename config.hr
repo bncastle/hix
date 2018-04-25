@@ -1,14 +1,14 @@
 #This is an HR file for building Hix.exe
---variables
+#variables
     UPX = c:\utils\upx.exe -9
     DestDir = C:\utils
     ExeName= hix.exe
---tasks 
-    build = haxe build.hxml
-    _pack = :UPX: .\bin\:ExeName:
-    _deploy = [
-        if exist :DestDir:\:ExeName:.old del :DestDir:\:ExeName:.old
-        if exist :DestDir:\:ExeName: ren :DestDir:\:ExeName: :ExeName:.old
-        copy /Y .\bin\:ExeName: :DestDir:
-    ]
-    buildDeploy = [:build, :_pack, :_deploy]
+#tasks 
+    :build = haxe build.hxml
+    :_pack = {~UPX} .\bin\{~ExeName}:
+    :_deploy = [[
+        if exist {~DestDir}\{~ExeName}.old del {~DestDir}\{~ExeName}.old
+        if exist {~DestDir}\{~ExeName} ren {~DestDir}\{~ExeName} {~ExeName}.old
+        copy /Y .\bin\{~ExeName} {~DestDir}
+    ]]
+    :buildDeploy = [:build, :_pack, :_deploy]

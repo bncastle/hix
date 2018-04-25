@@ -25,7 +25,7 @@ enum State
 }
 
 class Hix {
-	static inline var VERSION = "0.38";
+	static inline var VERSION = "0.39";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -425,7 +425,7 @@ class Hix {
 		//DO any string search/replace here
 		//A special string starts with '$' and can contain any chars except for whitespace
 		//var sp = new EReg("^\\$([^\\s]+)", "i");
-		var sp = new EReg("\\$\\[([^\\]]+)\\]", "i");
+		var sp = new EReg("\\${([^\\]]+)}", "i");
 		for (i in 0...buildArgList.length) 
 		{
 			if(sp.match(buildArgList[i]))
@@ -724,10 +724,10 @@ hix <inputFile>
 No more hxml or makefiles needed!
 
 Special arguments:
-$[filename] -> gets the name of the current file
-$[filenameNoExt] -> gets the name of the current file without the extension
-$[datetime=<optional strftime format specification>] ->Note not all strftime settings are supported
-$[datetime] -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
+${filename} -> gets the name of the current file
+${filenameNoExt} -> gets the name of the current file without the extension
+${datetime}=<optional strftime format specification>] ->Note not all strftime settings are supported
+${datetime} -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
 
 You can also change the program that is executed with the args (by default it is haxe)
 by placing a special command BEFORE the start header:

@@ -54,11 +54,13 @@ the Haxe compiler is supported. To get a list of them, just execute Haxe at the 
 Hix also supports some special parameters that can be used as arguments to some of the Haxe command lines switches.
 Note that all of these special parameters have the *`$`* prefix.
 
-*`$filename`* inserts the name of the current file.
+*`${filename}`* inserts the name of the current file.
 
-*`$datetime`* outputs the current date in the following format: %m/%e/%Y_%H:%M:%S
+*`${filenameNoExt}`* inserts the name of the current file without the extension.
 
-*`$datetime=(formatString)`*  outputs the current date using the given strftime format specification. 
+*`${datetime}`* outputs the current date in the following format: %m/%e/%Y_%H:%M:%S
+
+*`${datetime}=(formatString)`*  outputs the current date using the given strftime format specification. 
 (Not all strftime settings are supported.)
 
 When Hix is executed, it normally runs `Haxe.exe`, but this can be changed by placing the following
