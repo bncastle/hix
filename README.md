@@ -70,3 +70,13 @@ special command BEFORE any `hix::` headers:
 ```
 With the above command placed before any `hix::` headers, Hix will no longer execute the given build arguments
 using the default `Haxe.exe`, but will instead use `app.exe`
+
+ Additionally, hix also supports embedded files:
+ ```
+ /*::tmpfile= [filename]
+ file contents
+ */
+ ```
+ Any build tasks referring to this filename will cause it to be created before executing the build
+ After the build has completed, the file will be deleted unless the '-e' flag is specified
+ 

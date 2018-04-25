@@ -1,43 +1,60 @@
+import sys.io.File;
+import haxe.io.Path;
+import sys.FileSystem;
+
 //
 //Description:
 // Hix is a utility that enables compiling a Haxe source file without having a
 // build.hxml file or having to specify command line args every time you want to do a build.
 //
-//Author: Bryan Castleberry
-//Date: July 8,2017
+//Author: Pixelbyte studios
+//Date: April 2018
 //
-//Command line compile to cpp: haxe -main Hix --no-traces -cpp hixcpp
 //Note: The above requires you have the haxe std library dlls installed on the system
 //      where you want to use Hix. That should not be a problem.
 //
 //::hix       -main Hix  -cpp bin --no-traces -dce full
 //::hix:debug -main Hix  -cpp bin
-import sys.io.File;
-import haxe.io.Path;
-import sys.FileSystem;
-
+//
 enum State
 {
 	SearchingForHeader;
 	SearchingForArgs;
+	SearchingForOtherCommands;
+	ParseEmbeddedFile;
 	FinishSuccess;
 	FinishFail;
 }
 
+//.c. .cpp, .cs, .hx, .js, .ts 
+//comments
+//	single line: //
+//	multiline: /* * /
+
+typedef KeyValue = {key: String, val: String};
+
 class Hix {
-	static inline var VERSION = "0.39";
+	static inline var VERSION = "0.40";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
 	static inline var SPECIAL_CHAR = "$";
 	static inline var HX_EXT = ".hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
-	static var VALID_EXTENSIONS = [".hx", ".cs",".js",".ts"];
+	static var VALID_EXTENSIONS = [".hx", ".cs",".js",".ts", ".c", ".cpp"];
+	
 	//The executable key
 	static inline var EXE = "exe";
 
 	//This is where we store any keyValue pairs we find before the hix header is found
 	var keyValues:Map<String,String>;
+
+	//This allows us to embed files into an existing file and hix will extract it 
+	//to a temporary file for processing
+	var embeddedFiles:Map<String,String>;
+
+	//If true, then Hix will delete any generated embedded files after execution
+	var deleteGeneratedEmbeddedFiles: Bool = true;
 
 	//Read-only property for the current state of the parser
 	public var state(null,default):State = SearchingForHeader;
@@ -61,6 +78,11 @@ class Hix {
 	static function error(msg:Dynamic)
 	{
 		Sys.println('Error: $msg');
+	}
+
+	static function warn(msg:Dynamic)
+	{
+		Sys.println('Warning: $msg');
 	}
 
 	static function log(msg:Dynamic)
@@ -212,6 +234,10 @@ class Hix {
 			return 1;
 		}
 
+		//Should we not delete generatedEmbeddedFiles?
+		var deleteEmbeddedFiles:Bool = !ProcessFlag("e", flags);
+
+
 		//look for the first VALID filename from the args
 		inputFile = GetFirstValidFileFromArgs(args);
 		if(inputFile == null)
@@ -246,7 +272,7 @@ class Hix {
 			return 1;
 		}
 
-		var h = new Hix();
+		var h = new Hix(deleteEmbeddedFiles);
 		h.ParseFile(inputFile);
 
 		if(ProcessFlag("l", flags))
@@ -282,10 +308,12 @@ class Hix {
 		}
 	}
 
-	public function new() 
+	public function new(deleteGeneratedFiles:Bool = true) 
 	{
 		buildMap = new Map<String,Array<String>>();
 		keyValues = new Map<String,String>();
+		embeddedFiles = new Map<String,String>();
+		deleteGeneratedEmbeddedFiles = deleteGeneratedFiles;
 
 		//Set the default name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
 		keyValues[EXE] = "haxe";
@@ -296,6 +324,8 @@ class Hix {
 	//
 	public function Execute(buildName: String): Int
 	{
+		var embeddedFilesUsed: Array<String> = new Array<String>();
+
 		if(!buildMap.exists(buildName) || buildMap[buildName].length == 0)
 		{
 			error('[Hix] No compiler args found for: $buildName');
@@ -313,11 +343,54 @@ class Hix {
 			//Add the build args
 			args = args.concat(buildMap[buildName]);
 
+			for (text in args){
+				//search for any embedded files in the args and if found, create them and add them to a list
+				//to be deleted after the run is finished
+				for(filename in embeddedFiles.keys()){
+					//Skip any that we already know are used
+					if(embeddedFilesUsed.indexOf(filename) > -1) continue;
+					
+					//Is this file referenced?
+					if(text.indexOf(filename) > -1){
+						//Does it already exist?
+						if(FileSystem.exists(filename)){
+							warn('Embedded file: ${filename} already exists. Ignoring embedded version.');
+						}
+						//If not, create the file
+						else{
+							trace('[Hix] creating embedded file: ${filename}');
+							File.saveContent(filename, embeddedFiles[filename]);
+							embeddedFilesUsed.push(filename);
+						}
+					}
+				}
+			}
+
 			var exe = keyValues[EXE];
 			log('[Hix] Running build label: $buildName');
-			log(exe + " " + args.join(" "));
-			log('');
-			return Sys.command(exe, args);
+			log(exe + " " + args.join(" ") + "\n");
+			var retCode = Sys.command(exe, args);
+
+			//Delete any temp-create embedded files
+			if(embeddedFilesUsed.length > 0){
+				if(deleteGeneratedEmbeddedFiles){
+					log('[Hix] cleaning up embedded files.');
+					for(filename in embeddedFilesUsed){
+						try{
+							FileSystem.deleteFile(filename);
+						}
+						catch(ex:Dynamic) { 
+							error('Unable to delete embedded file: ${filename}!');
+						}
+					}
+				}
+				else{
+					log('[Hix] NOT cleaning up embedded files.');
+				}
+			}
+
+
+			return retCode;
 		}
 	}
 
@@ -326,9 +399,16 @@ class Hix {
 	//
 	public function ParseFile(fileName:String)
 	{
+		var endMultilineComment =  ~/^\s*\*\//;
 		var currentBuildArgs:Array<String> = null;
 		var prevBuildName:String = DEFAULT_BUILD_NAME;
 		var fileExt = "." + fileName.split(".")[1];
+		//What line are we on
+		var line = -1;
+		//Store the name of the embedded file we are curently parsing (if there are any) in here
+		var embeddedFilename:String ="";
+		var fileContents: StringBuf = null;
+
 		inComment = false;
 		multilineComment = false;
 		filename = fileName;
@@ -339,16 +419,15 @@ class Hix {
 			trace("[Hix] Searching for a header..");
 			while(true) {
 				text = reader.readLine();
+				line++;
 
 				//Update the multiline comment state
 				CheckComment();
 
-				switch (state)
-				{
+				switch (state) {
 					case State.SearchingForHeader:
 						currentBuildArgs = IsStartHeader();
-						if(currentBuildArgs != null)
-						{
+						if(currentBuildArgs != null) {
 							trace("[Hix] Header Found!");
 							//Once the header is found, we begin searching for build arguments
 							//Note: Once the search for build args has begun, it will stop
@@ -357,9 +436,17 @@ class Hix {
 
 							state = State.SearchingForArgs;
 						}
-						else
-							//Look for any Pre-Header commmands
-							ParsePreHeaderCommands();
+						else {
+							//Look for any Pre-Header key/values
+							var t = ParsePreHeaderKeyValue();
+							if(t != null)
+							{
+								keyValues[t.key] = t.val;
+								if(t.key == EXE)
+									log('[Hix] exe changed to: ${t.val}');
+							}
+						}
+
 					case State.SearchingForArgs:
 						if(!inComment && currentBuildArgs.length == 0) //Couldn't find anything
 						{
@@ -376,11 +463,13 @@ class Hix {
 							}
 							else
 							{
-								trace("[Hix] Success");
+								trace("[Hix] Success. Found compiler args");
 								CreateBuilder(currentBuildName, currentBuildArgs);
-								state = State.FinishSuccess;
+								// state = State.FinishSuccess;
+								state = SearchingForOtherCommands;
+								trace("[Hix] Searching for other commands");
 							}
-							break;
+							// break;
 						}
 						else //We're in a comment
 						{
@@ -389,8 +478,7 @@ class Hix {
 							if(newArgs != null)
 							{
 								trace("[Hix] Success");
-								//Since it looks like we're in a start header
-								//create any builder we had previously stored
+								//Since it looks like we're in a start header, create any builder we had previously stored
 								CreateBuilder(prevBuildName, currentBuildArgs);
 								//Now switch to this new current one
 								currentBuildArgs = newArgs;
@@ -411,50 +499,105 @@ class Hix {
 								// }
 							}
 						}
+					case State.SearchingForOtherCommands:
+						if(inComment)
+						{
+							//Look for any other keyvalue commands
+							var t = ParsePreHeaderKeyValue();
+							if(t != null)
+							{
+								trace('key: ${t.key}');
+								if(t.key=="tmpfile")
+								{
+									if(t.val =="" || t.val==null)
+									{
+										error('[Hix: ${line}] Must specify a name for the embedded file!');
+										state = State.FinishFail;
+									}
+									else{
+										log('[Hix] embedded file found: ${t.val}');
+										embeddedFilename = t.val;
+										state = State.ParseEmbeddedFile;
+										fileContents = new StringBuf();
+									}
+								}
+							}
+						}
+					case State.ParseEmbeddedFile:
+						if(!inComment){
+							if(fileContents.length > 0){
+								embeddedFiles.set(embeddedFilename, fileContents.toString());
+								fileContents = null;
+							}
+							state = State.SearchingForOtherCommands;
+						}
+						else
+						{
+							//Make sure this is NOT the end of a multiline comment
+							//The multiline comment ending tag '*/' must be placed on a separate line
+							if(!endMultilineComment.match(text)){
+								if(fileContents.length > 0)
+									fileContents.add("\n");
+								fileContents.add(Std.string(text));
+							}
+						}
 					case State.FinishSuccess:
 					case State.FinishFail:
 				}
 			}
 		}
-		catch(ex:haxe.io.Eof) {}
+		catch(ex:haxe.io.Eof) { }
+
+		if(fileContents != null && fileContents.length > 0){
+		 	embeddedFiles.set(embeddedFilename, fileContents.toString());
+		}
+		if (state == State.ParseEmbeddedFile || state == State.SearchingForOtherCommands)
+		 	state = State.FinishSuccess;
+
 		reader.close();
 	}
 
 	function ProcessSpecialCommands(buildArgList: Array<String>)
 	{
-		//DO any string search/replace here
-		//A special string starts with '$' and can contain any chars except for whitespace
-		//var sp = new EReg("^\\$([^\\s]+)", "i");
-		var sp = new EReg("\\${([^\\]]+)}", "i");
 		for (i in 0...buildArgList.length) 
 		{
-			if(sp.match(buildArgList[i]))
-			{
-				//grab the special text. Split it by the '=' sign
-				//so any parameters come after the =
-
-				buildArgList[i] = sp.map(buildArgList[i], function(r){
-					var matched = r.matched(1);
-					//Process special commands here
-					switch (matched)
-					{
-						case "filename":return filename;
-						//Filename without the extension
-						case "filenameNoExt":return filename.split(".")[0];
-						case "datetime":
-							var date = Date.now();
-							var cmd = matched.split('=');
-							//No date parameters? Ok, just do defaul Month/Day/Year
-							if(cmd.length == 1)
-								return DateTools.format(date,"%m/%e/%Y_%H:%M:%S");
-							else
-								return DateTools.format(date,cmd[1]);
-						default:
-							return r.matched(0); 
-					}
-				});
-			}
+			buildArgList[i] = ProcessSpecialCommand(buildArgList[i]);
 		}
+	}
+
+	//DO any string search/replace here
+	//A special string starts with '$' and can contain any chars except for whitespace
+	//var sp = new EReg("^\\$([^\\s]+)", "i");
+	var sp = new EReg("\\${([^\\]]+)}", "i");
+
+	function ProcessSpecialCommand(text:String):String{
+		if(sp.match(text))
+		{
+			//grab the special text. Split it by the '=' sign
+			//so any parameters come after the =
+
+			text = sp.map(text, function(r){
+				var matched = r.matched(1);
+				//Process special commands here
+				switch (matched)
+				{
+					case "filename":return filename;
+					//Filename without the extension
+					case "filenameNoExt":return filename.split(".")[0];
+					case "datetime":
+						var date = Date.now();
+						var cmd = matched.split('=');
+						//No date parameters? Ok, just do defaul Month/Day/Year
+						if(cmd.length == 1)
+							return DateTools.format(date,"%m/%e/%Y_%H:%M:%S");
+						else
+							return DateTools.format(date,cmd[1]);
+					default:
+						return r.matched(0); 
+				}
+			});
+		}
+		return text;
 	}
 
 	function CreateBuilder(buildName:String, args:Array<String>)
@@ -535,28 +678,27 @@ class Hix {
 	}
 
 	//
-	//Look for any commands that occur BEFORE the header start sequence
+	//Look for any key value declarations that occur BEFORE the header start sequence
 	//
-	function ParsePreHeaderCommands()
+	function ParsePreHeaderKeyValue() : KeyValue
 	{
 		//If we are not in a comment, return
-		if(!inComment) return;
-
+		if(!inComment) return null;
 		var cmd = new EReg(COMMAND_PREFIX + "\\s*([^\\n]*)$","i");
 		var keyVal = new EReg("\\s*([A-Za-z_][A-Za-z0-9_]+)\\s*=\\s*([^\\n]+)$","i");
 		if(cmd.match(text) && cmd.matched(1).indexOf('=') > -1) {
 			if(keyVal.match(cmd.matched(1)))
 			{
 				var key = StringTools.rtrim(keyVal.matched(1));
-				var val = StringTools.rtrim(keyVal.matched(2));
+				var val = ProcessSpecialCommand(StringTools.rtrim(keyVal.matched(2)));
 				trace('[Hix] Found key value pair: ${key} = ${val}');
-				//Set the key value pair
-				keyValues[key] = val;
-
-				if(key == EXE)
-					log('Hix: exe changed to: ${val}');
+				return {key: key, val: val};
 			}
+			else 
+				return null;
 		}
+		else
+			return null;
 	}
 
 	//Looks for single and multi-line comments
@@ -684,56 +826,65 @@ class Hix {
 	{
 		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
 		Sys.println('Hix.exe <inputFile> [buildName] OR');			
-		Sys.println('Hix.exe -l <inputFile> prints valid builds');	
-		Sys.println('Hix.exe -h for help');	
-		Sys.println('Hix.exe -u for usage info');	
+		Sys.println('available flags:');
+		Sys.println('-l <inputFile> prints valid builds');
+		Sys.println('-e Tells hix not to delete generated embeded files after build completion');
+		Sys.println('-h prints help');
+		Sys.println('-u prints usage info');	
 	}
 
 	static function PrintHelp()
 	{
 var inst: String = "
-Hix is a utility that lets you to store compile settings inside of source files.
-Currently supported languages are: ::ValidExtensions::	
-Put the start header near the top of your source file and add desired compile args:
-//::HixHeader:: -main Main -neko example.n 
-If you want, you can put the args on multiple lines:
-//::HixHeader::
-//-main Main
-//-neko hi.n
-Or you can put it them a multi-line comment:
-/*
-::HixHeader::
--main Main
--neko hi.n
-*/
+ Hix is a utility that lets you to store compile settings inside of source files.
+ Currently supported languages are: ::ValidExtensions::	
+ Put the start header near the top of your source file and add desired compile args:
+ //::HixHeader:: -main Main -neko example.n 
+ If you want, you can put the args on multiple lines:
+ //::HixHeader::
+ //-main Main
+ //-neko hi.n
+ Or you can put it them a multi-line comment:
+ /*
+ ::HixHeader::
+ -main Main
+ -neko hi.n
+ */
+ 
+ Hix also supports multiple build configs.
+ For example, in a haxe .hx file you can specify both cpp and neko target builds. 
+ 
+ //::HixHeader:::target1 -main Main --no-traces -dce full -cpp bin
+ //::HixHeader:::target2 -main HR --no-traces -dce full -neko hr.n
+ 
+ Then invoke your desired build config by adding the name of the config (which
+ in this case is either target1 or target2):
+ hix Main.hx target1 <- Builds target1
+ hix Main.hx target2 <- Builds target2
+ 
+ Then compile by running:
+ hix <inputFile>
+ 
+ No more hxml or makefiles needed!
+ 
+ Special arguments:
+ ${filename} -> gets the name of the current file
+ ${filenameNoExt} -> gets the name of the current file without the extension
+ ${datetime} -> <optional strftime format specification>] ->Note not all strftime settings are supported
+ ${datetime} -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
+ 
+ You can also change the program that is executed with the args (by default it is haxe)
+ by placing a special command BEFORE the start header:
+ //::exe=<name of executable>
 
-Hix also supports multiple build configs.
-For example, in a haxe .hx file you can specify both cpp and neko target builds. 
-
-//::HixHeader:::target1 -main Main --no-traces -dce full -cpp bin
-//::HixHeader:::target2 -main HR --no-traces -dce full -neko hr.n
-
-Then invoke your desired build config by adding the name of the config (which
-in this case is either target1 or target2):
-hix Main.hx target1 <- Builds target1
-hix Main.hx target2 <- Builds target2
-
-Then compile by running:
-hix <inputFile>
-
-No more hxml or makefiles needed!
-
-Special arguments:
-${filename} -> gets the name of the current file
-${filenameNoExt} -> gets the name of the current file without the extension
-${datetime}=<optional strftime format specification>] ->Note not all strftime settings are supported
-${datetime} -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
-
-You can also change the program that is executed with the args (by default it is haxe)
-by placing a special command BEFORE the start header:
-//::exe=<name of executable>
-
-=============================================================================
+ Additionally, hix also supports embedded files:
+ /*::tmpfile= [filename]
+ file contents
+ */
+ Any build tasks referring to this filename will cause it to be created before executing the build
+ After the build has completed, the file will be deleted unless the '-e' flag is specified
+ 
+ =============================================================================
 			";
 			var params = {HixHeader: HEADER_START, ValidExtensions: VALID_EXTENSIONS.join(" ")};
 			var template = new haxe.Template(inst);
