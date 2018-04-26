@@ -41,8 +41,9 @@ class Hix {
 	static inline var SPECIAL_CHAR = "$";
 	static inline var HX_EXT = "hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
+	static inline var OBJ_DIR = "obj";
 
-	static inline var DEFAULT_CFLAGS = "/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:obj\\";
+	static var DEFAULT_CFLAGS = '/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:${OBJ_DIR}\\';
 	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link /LTCG ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
 
 	static inline var ENV_PATH = "Path";
@@ -184,7 +185,8 @@ class Hix {
 		else 
 		{
 			if(files.length > 1){
-				error('\n** Found ${files.length} files with extension $ext. Please specify which one to use. **\n');
+				log('[Hix] Found ${files.length} files with extension $ext. Trying ${files[0]}');
+				return files[0];
 			}
 			return null;
 		}
@@ -292,6 +294,22 @@ class Hix {
 		var h = new Hix(deleteEmbeddedFiles);
 		h.ParseFile(inputFile);
 
+		if(ProcessFlag("clean", flags)){
+			if(h.fileType == "c" || h.fileType == "cpp"){
+				if(FileSystem.exists(OBJ_DIR)){
+					log('[Hix] Cleaning ${OBJ_DIR} directory');
+					DeleteDir(OBJ_DIR);
+				}
+				else{
+					log('[Hix] No ${OBJ_DIR} directory exists');
+				}
+			}
+			else{
+				log('[Hix] Currently only supports cleaning for .c and .cpp files.');
+			}
+			return 1;
+		}
+
 		if(ProcessFlag("l", flags))
 		{
 			if(h.buildMap.keys().hasNext())
@@ -333,8 +351,6 @@ class Hix {
 		deleteGeneratedEmbeddedFiles = deleteGeneratedFiles;
 
 		//Setup some defaults for C/C++ builds
-		// /nologo supresses eoms of the copyright banner that is normally printed when running Windows cl.exe
-		//Put all object files in a separate /obj directory
 		keyValues["cflags"] = DEFAULT_CFLAGS;
 	}
 
@@ -369,8 +385,8 @@ class Hix {
 			//Do special things for certain filetypes
 			//create an obj folder for .c or cpp files if one doesn't exist
 			if(fileType == "c" || fileType == "cpp" ){
-				if(!FileSystem.exists("obj"))
-					FileSystem.createDirectory("obj");
+				if(!FileSystem.exists(OBJ_DIR))
+					FileSystem.createDirectory(OBJ_DIR);
 			}
 
 			//See if the EXE is in the filepath AND if we have a setupEnv key/value pair
@@ -948,6 +964,7 @@ class Hix {
 		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
 		Sys.println('Hix.exe <inputFile> [buildName] OR');			
 		Sys.println('available flags:');
+		Sys.println('-clean Cleans any intermediate files (currently for .c and .cpp src files only)');
 		Sys.println('-l <inputFile> prints valid builds');
 		Sys.println('-e Tells hix not to delete generated embeded files after build completion');
 		Sys.println('-h prints help');
@@ -1033,6 +1050,25 @@ var inst: String = "
 			}
 		}
 		return null;
+	}
+
+	public static function DeleteDir(path:String) : Void
+	{
+		if (sys.FileSystem.exists(path) && sys.FileSystem.isDirectory(path))
+		{
+			var entries = sys.FileSystem.readDirectory(path);
+			for (entry in entries) {
+				var filePath = Path.join([path,entry]);
+				if (sys.FileSystem.isDirectory(filePath)) {
+					DeleteDir(filePath);
+					sys.FileSystem.deleteDirectory(filePath);
+				} 
+				else {
+					sys.FileSystem.deleteFile(filePath);
+				}
+			}
+			sys.FileSystem.deleteDirectory(path);
+		}
 	}
 }
 
