@@ -80,3 +80,17 @@ using the default `Haxe.exe`, but will instead use `app.exe`
  Any build tasks referring to this filename will cause it to be created before executing the build
  After the build has completed, the file will be deleted unless the '-e' flag is specified
  
+Pre-commands are supported by using:
+ //::preCmd = (command(s) to run before the main exe command)
+ This can be used if you want to run a .bat file or several batch commands separated by '&&'
+
+[TODO: Explain better]
+If the main .exe to be executed cannot be found in the path, hix will look for 
+a key in a hix.json located in the same directory as the hix.exe file. the key will be named:
+{exe}Path where {exe} is the name of the executable to be run. If it finds the key, it will use that key as
+the path to run the exe. If it does not exist, Hix will then look for the following key
+//::setupEnv = vcvars64.bat
+If it is found, it will pre-append it to the .exe command to be run and execute it.
+
+
+

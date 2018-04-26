@@ -1,7 +1,7 @@
 import sys.io.File;
 import haxe.io.Path;
+import haxe.Json;
 import sys.FileSystem;
-
 //
 //Description:
 // Hix is a utility that enables compiling a Haxe source file without having a
@@ -34,15 +34,30 @@ enum State
 typedef KeyValue = {key: String, val: String};
 
 class Hix {
-	static inline var VERSION = "0.40";
+	static inline var VERSION = "0.41";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
 	static inline var SPECIAL_CHAR = "$";
-	static inline var HX_EXT = ".hx";
+	static inline var HX_EXT = "hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
+
+	static inline var DEFAULT_CFLAGS = "/nologo /EHsc /GS /GL /Gm /Zi /Gy /sdl /O2 /WX /Fo:obj\\";
+	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
+
+	static inline var ENV_PATH = "Path";
+
 	static var VALID_EXTENSIONS = [".hx", ".cs",".js",".ts", ".c", ".cpp"];
-	
+	static var ExtToExe:Map<String,String>= [
+		"hx" => "haxe.exe",
+		"cs" => "csc.exe",
+		"c" => "cl.exe",
+		"cpp" => "cl.exe",
+		"ts" => "tsc.exe",
+	];
+
+	public static var OS = Sys.systemName();
+
 	//The executable key
 	static inline var EXE = "exe";
 
@@ -67,6 +82,9 @@ class Hix {
 
 	//The name of the file under examination
 	var filename:String;
+
+	//The type of file we're looking at. I.e cs c hx js ts cpp, etc
+	var fileType:String;
 
 	//The current line of text from the input file
 	var text:String;
@@ -261,7 +279,6 @@ class Hix {
 		if(inputFile == null)
 		{
 			error('Unable to find any valid files!');
-			Hix.PrintUsage();
 			return 1;
 		}
 
@@ -315,8 +332,10 @@ class Hix {
 		embeddedFiles = new Map<String,String>();
 		deleteGeneratedEmbeddedFiles = deleteGeneratedFiles;
 
-		//Set the default name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
-		keyValues[EXE] = "haxe";
+		//Setup some defaults for C/C++ builds
+		// /nologo supresses eoms of the copyright banner that is normally printed when running Windows cl.exe
+		//Put all object files in a separate /obj directory
+		keyValues["cflags"] = DEFAULT_CFLAGS;
 	}
 
 	//
@@ -325,7 +344,7 @@ class Hix {
 	public function Execute(buildName: String): Int
 	{
 		var embeddedFilesUsed: Array<String> = new Array<String>();
-
+	
 		if(!buildMap.exists(buildName) || buildMap[buildName].length == 0)
 		{
 			error('[Hix] No compiler args found for: $buildName');
@@ -333,17 +352,58 @@ class Hix {
 		}
 		else
 		{
-			var args:Array<String> = [];
-			//Check if there are any pre args
-			if (keyValues.exists("preArgs"))
-			{
-				args = keyValues["preArgs"].split(" ");
-				log('Appending PreArgs: ${keyValues["preArgs"]}');
+			var exe:String = keyValues[EXE];
+			if(exe == null || exe.length == 0){
+				error('Exe is unknown or was not specified using //::exe\nExiting...');
+				return -1;
 			}
+
+			var args:List<String> = new List<String>();
+			//Check if there are any pre args
+			if (keyValues.exists("preCmd"))
+			{
+				log('Appending PreCmd: ${keyValues["preCmd"]}');
+				args.add(keyValues["preCmd"]);
+			}
+
+			//Do special things for certain filetypes
+			//create an obj folder for .c or cpp files if one doesn't exist
+			if(fileType == "c" || fileType == "cpp" ){
+				if(!FileSystem.exists("obj"))
+					FileSystem.createDirectory("obj");
+			}
+
+			//See if the EXE is in the filepath AND if we have a setupEnv key/value pair
+			//If the exe can't be found, assume that the environment needs to be setup by calling 
+			//whatever the setupEnv command is
+			if(WhereIsFile(exe) == null){
+				var exePath = Config.Get(exe + "Path");
+				if(exePath != null){
+					// Sys.environment()[ENV_PATH] = Sys.environment()[ENV_PATH] + ";" + exePath;
+					exe = Path.join([exePath, exe]);
+				}
+				if(keyValues.exists("setupEnv")){
+					args.add("cmd.exe " + keyValues["setupEnv"] + "&&");
+					//Sys.command(keyValues["setupEnv"]);
+					//Config.Save({key : exe + "Path", val : WhereIsFile(exe)});
+				}
+				else{
+					error('Unable to find the executable: ${exe}');
+					return -1;
+				}
+			}
+
+			//Add the actual command
+			args.add(exe);
+
 			//Add the build args
-			args = args.concat(buildMap[buildName]);
+			for(a in buildMap[buildName])
+				args.add(a);
 
 			for (text in args){
+				//Windows filenames are case insensitive
+				if(OS == "Windows") text = text.toLowerCase();
+
 				//search for any embedded files in the args and if found, create them and add them to a list
 				//to be deleted after the run is finished
 				for(filename in embeddedFiles.keys()){
@@ -366,10 +426,10 @@ class Hix {
 				}
 			}
 
-			var exe = keyValues[EXE];
 			log('[Hix] Running build label: $buildName');
-			log(exe + " " + args.join(" ") + "\n");
-			var retCode = Sys.command(exe, args);
+			log(args.join(" ") + "\n");
+			var retCode = Sys.command(args.join(" "));
+			//var retCode = Sys.command(exe, args);
 
 			//Delete any temp-create embedded files
 			if(embeddedFilesUsed.length > 0){
@@ -388,8 +448,6 @@ class Hix {
 					log('[Hix] NOT cleaning up embedded files.');
 				}
 			}
-
-
 			return retCode;
 		}
 	}
@@ -400,9 +458,17 @@ class Hix {
 	public function ParseFile(fileName:String)
 	{
 		var endMultilineComment =  ~/^\s*\*\//;
+		var whitespace= ~/^\s+$/g;
 		var currentBuildArgs:Array<String> = null;
 		var prevBuildName:String = DEFAULT_BUILD_NAME;
-		var fileExt = "." + fileName.split(".")[1];
+		fileType = fileName.split(".")[1].toLowerCase();
+
+		//Set the default name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
+		if(ExtToExe.exists(fileType))
+			keyValues[EXE] = ExtToExe[fileType]
+		else
+			keyValues[EXE] = "";
+
 		//What line are we on
 		var line = -1;
 		//Store the name of the embedded file we are curently parsing (if there are any) in here
@@ -444,6 +510,44 @@ class Hix {
 								keyValues[t.key] = t.val;
 								if(t.key == EXE)
 									log('[Hix] exe changed to: ${t.val}');
+								else if(t.key == "incDirs"){
+									var v = t.val.split(" ");
+									v = v.filter(function(str) return str.length > 0 && !whitespace.match(str));
+									if(v.length == 0) keyValues[t.key] = "";
+									else{
+										v[0] = "/I" + v[0];
+										keyValues[t.key] = v.join(" /I");
+									}
+								}
+								else if(t.key == "libDirs"){
+									var v = t.val.split(" ");
+									v = v.filter(function(str) return str.length > 0 && !whitespace.match(str));
+									if(v.length == 0) keyValues[t.key] = "";
+									else{
+										v[0] = "/LIBPATH:" + v[0];
+										keyValues[t.key] = v.join(" /LIBPATH:");
+									}
+								}
+								else if(t.key == "defines"){
+									var v = t.val.split(" ");
+									v = v.filter(function(str) return str.length > 0 && !whitespace.match(str));
+									if(v.length == 0) keyValues[t.key] = "";
+									else{
+										v[0] = "/D" + v[0];
+										keyValues[t.key] = v.join(" /D");
+									}
+								}
+								else if(t.key == "libs"){
+									var v = t.val.split(" ");
+									v = v.filter(function(str) return str.length > 0 && !whitespace.match(str));
+									if(v.length == 0) keyValues[t.key] = "";
+									else{
+										keyValues[t.key] = v.map(function(str) {
+											if(str.indexOf(".") > -1) return str;
+											else return str + ".lib";
+										}).join(" ");
+									}
+								}
 							}
 						}
 
@@ -456,19 +560,11 @@ class Hix {
 						}
 						else if(!inComment && currentBuildArgs.length > 0) //Found something
 						{
-							if(fileExt != HX_EXT && keyValues[EXE] == "haxe")
-							{
-								error('Non-haxe src files must set executable with: //${COMMAND_PREFIX}exe=<exe_name>! Currently set to: ${keyValues[EXE]}');
-								state = State.FinishFail;
-							}
-							else
-							{
-								trace("[Hix] Success. Found compiler args");
-								CreateBuilder(currentBuildName, currentBuildArgs);
-								// state = State.FinishSuccess;
-								state = SearchingForOtherCommands;
-								trace("[Hix] Searching for other commands");
-							}
+							trace("[Hix] Success. Found compiler args");
+							CreateBuilder(currentBuildName, currentBuildArgs);
+							// state = State.FinishSuccess;
+							state = SearchingForOtherCommands;
+							trace("[Hix] Searching for other commands");
 							// break;
 						}
 						else //We're in a comment
@@ -516,7 +612,10 @@ class Hix {
 									}
 									else{
 										log('[Hix] embedded file found: ${t.val}');
-										embeddedFilename = t.val;
+										if(OS == "Windows") 
+											embeddedFilename = t.val.toLowerCase();
+										else
+											embeddedFilename = t.val;
 										state = State.ParseEmbeddedFile;
 										fileContents = new StringBuf();
 									}
@@ -570,7 +669,7 @@ class Hix {
 	//var sp = new EReg("^\\$([^\\s]+)", "i");
 	var sp = new EReg("\\${([^\\]]+)}", "i");
 
-	function ProcessSpecialCommand(text:String):String{
+	function ProcessSpecialCommand(text:String, key:String = null, returnEmptyIfNotFound:Bool = false):String{
 		if(sp.match(text))
 		{
 			//grab the special text. Split it by the '=' sign
@@ -593,7 +692,20 @@ class Hix {
 						else
 							return DateTools.format(date,cmd[1]);
 					default:
-						return r.matched(0); 
+						if(keyValues.exists(matched)){
+							if(matched == key){
+								error('Recursive key reference detected: ${key}');
+							return r.matched(0);
+							}
+							else
+								return keyValues.get(matched);
+						}
+						else{
+							if(returnEmptyIfNotFound)
+								return "";
+							else
+								return r.matched(0);
+						}
 				}
 			});
 		}
@@ -639,12 +751,21 @@ class Hix {
 			else 
 				currentBuildName = DEFAULT_BUILD_NAME;
 
-			if(!isBlank.match(header.matched(2)))
-			{
+			if(!isBlank.match(header.matched(2))){
 				//Add this arg to our args arry and trim any whitespace
-				return GrabArgs(header.matched(2));
+				return GrabArgs(StringTools.rtrim(header.matched(2)));
 			}
-			return new Array<String>();
+			else{
+				trace('[Hix] Unable to find args for ${currentBuildName}');
+				if(fileType == "c" || fileType == "cpp"){
+					trace('[Hix] Settings default args for .c|.cpp file for ${currentBuildName}:\n${DEFAULT_C_OUTPUT_ARGS}');
+					return GrabArgs(DEFAULT_C_OUTPUT_ARGS);
+				}
+				else{
+					trace('[Hix] Args were empty and no default args found for ${currentBuildName}');
+					return new Array<String>();
+				}
+			}
 		}
 		return null;
 	}
@@ -690,7 +811,7 @@ class Hix {
 			if(keyVal.match(cmd.matched(1)))
 			{
 				var key = StringTools.rtrim(keyVal.matched(1));
-				var val = ProcessSpecialCommand(StringTools.rtrim(keyVal.matched(2)));
+				var val = ProcessSpecialCommand(StringTools.rtrim(keyVal.matched(2)), key);
 				trace('[Hix] Found key value pair: ${key} = ${val}');
 				return {key: key, val: val};
 			}
@@ -890,5 +1011,64 @@ var inst: String = "
 			var template = new haxe.Template(inst);
             var output = template.execute(params);
             Sys.print(output);
+	}
+
+	//Checks for the given file within the current environment's path string
+	//returns the path (not the filename) to the file if it exists, null otherwise
+	public static function WhereIsFile(filename:String):String
+	{
+		var pathEnv = Sys.environment()[ENV_PATH];
+		if(pathEnv == null){
+			warn("Unable to get current environment Path!");
+			return null;
+		}
+
+		//Try all the paths in the environment to see if we can find the file
+		var paths = pathEnv.split(';');
+		for(path in paths){
+			var fullPath = Path.join([path, filename]);
+			if(FileSystem.exists(fullPath)){
+				trace('path for ${filename} found: ${path}');
+				return path;
+			}
+		}
+		return null;
+	}
+}
+
+class Config{
+	static inline var CFG_FILE = "hix.json";
+	static var cfgPath = Path.join([Path.directory(Sys.programPath()), CFG_FILE]);
+
+	public static function Save(kv:KeyValue){
+		var keyValues:Map<String,String> = null;
+		if(!FileSystem.exists(cfgPath))
+			keyValues = new	Map<String, String>();
+		else{
+			var text = File.getContent(cfgPath);
+			keyValues = Json.parse(text);
+		}
+	
+		if(kv.val == null || kv.val.length == 0)
+			keyValues.remove(kv.key);
+		else
+			keyValues[kv.key] = kv.val;
+		
+		//Only save it if there is at least one key in the keyValues map
+		if(keyValues.keys().hasNext())
+			File.saveContent(cfgPath, Json.stringify(keyValues));
+	}
+
+	public static function Get(key:String):String{
+		if(!FileSystem.exists(cfgPath))
+			return null;
+		else{
+			var text = File.getContent(cfgPath);
+			var keyValues:Map<String,String> = Json.parse(text);
+			if(keyValues.exists(key))
+				return keyValues[key];
+			else
+				return null;
+		}
 	}
 }
