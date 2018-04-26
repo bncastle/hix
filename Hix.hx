@@ -48,7 +48,7 @@ class Hix {
 
 	static inline var ENV_PATH = "Path";
 
-	static var VALID_EXTENSIONS = [".hx", ".cs",".js",".ts", ".c", ".cpp"];
+	static var VALID_EXTENSIONS = [".hx", ".cs", ".c", ".cpp", ".js",".ts"];
 	static var ExtToExe:Map<String,String>= [
 		"hx" => "haxe.exe",
 		"cs" => "csc.exe",
@@ -185,7 +185,7 @@ class Hix {
 		else 
 		{
 			if(files.length > 1){
-				log('[Hix] Found ${files.length} files with extension $ext. Trying ${files[0]}');
+				log('[Hix] Found ${files.length} files with extension ${ext}');
 				return files[0];
 			}
 			return null;
@@ -269,18 +269,21 @@ class Hix {
 
 
 		//look for the first VALID filename from the args
-		inputFile = GetFirstValidFileFromArgs(args);
-		if(inputFile == null)
-		{
-			//look for any .hx file in the current directory
-			inputFile = FindFirstFileInValidExts(cwd);
+		if(inputFile == null){
+			inputFile = GetFirstValidFileFromArgs(args);
+
 			if(inputFile == null)
 			{
-				PrintUsage();
-				return 1;
+				//look for any .hx file in the current directory
+				inputFile = FindFirstFileInValidExts(cwd);
+				if(inputFile == null)
+				{
+					PrintUsage();
+					return 1;
+				}
+				else
+					log('Trying file: $inputFile');
 			}
-			else
-				log('Trying file: $inputFile');
 		}
 
 		//See if there is a build name specified
