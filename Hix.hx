@@ -42,8 +42,8 @@ class Hix {
 	static inline var HX_EXT = "hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
 
-	static inline var DEFAULT_CFLAGS = "/nologo /EHsc /GS /GL /Gm /Zi /Gy /sdl /O2 /WX /Fo:obj\\";
-	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
+	static inline var DEFAULT_CFLAGS = "/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:obj\\";
+	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link /LTCG ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
 
 	static inline var ENV_PATH = "Path";
 
