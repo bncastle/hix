@@ -63,8 +63,7 @@ Note that all of these special parameters have the *`$`* prefix.
 *`${datetime}=(formatString)`*  outputs the current date using the given strftime format specification. 
 (Not all strftime settings are supported.)
 
-When Hix is executed, it normally runs `Haxe.exe`, but this can be changed by placing the following
-special command BEFORE any `hix::` headers:
+When Hix is executed, it normally determines the executable to run based on the source file's extension, but this can be changed by placing the following key BEFORE any `hix::` headers:
 ```
 //::exe=app.exe
 ```
