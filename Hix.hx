@@ -383,7 +383,7 @@ class Hix {
 					exe = Path.join([exePath, exe]);
 				}
 				if(keyValues.exists("setupEnv")){
-					args.add("cmd.exe " + keyValues["setupEnv"] + "&&");
+					args.add(keyValues["setupEnv"] + "&&");
 					//Sys.command(keyValues["setupEnv"]);
 					//Config.Save({key : exe + "Path", val : WhereIsFile(exe)});
 				}
