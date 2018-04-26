@@ -96,12 +96,12 @@ class Hix {
 
 	static function error(msg:Dynamic)
 	{
-		Sys.println('Error: $msg');
+		Sys.println('[Hix] Error: $msg');
 	}
 
 	static function warn(msg:Dynamic)
 	{
-		Sys.println('Warning: $msg');
+		Sys.println('[Hix] Warning: $msg');
 	}
 
 	static function log(msg:Dynamic)
@@ -243,7 +243,17 @@ class Hix {
 		var flags = ParseArgOptions(args);
 
 		//Check for any command line switches here
-		if(ProcessFlag("h", flags))
+		if(ProcessFlag("gen", flags)){
+			if(!Config.Exists()){
+				Config.Create(["key" => "value"]);
+				log('[Hix] Creating new Config file at: ${Config.cfgPath}');
+			}
+			else{
+				log('[Hix] Config file already exists at: ${Config.cfgPath}');
+			}
+			return 1;
+		}
+		else if(ProcessFlag("h", flags))
 		{
 			Hix.PrintHelp();
 			return 1;
@@ -393,17 +403,21 @@ class Hix {
 			//If the exe can't be found, assume that the environment needs to be setup by calling 
 			//whatever the setupEnv command is
 			if(WhereIsFile(exe) == null){
-				var exePath = Config.Get(exe + "Path");
-				if(exePath != null){
-					// Sys.environment()[ENV_PATH] = Sys.environment()[ENV_PATH] + ";" + exePath;
-					exe = Path.join([exePath, exe]);
-				}
+				// var exeKey = exe.split('.')[0] + "Path";
+				// var exePath = Config.Get(exeKey);
+				// if(exePath != null){
+				// 	args.add('set PATH=${Sys.environment()[ENV_PATH]};${exePath}& ');
+				// }
+				// else 
 				if(keyValues.exists("setupEnv")){
+					// log('[Hix] Unable to find key "${exeKey}" in ${Config.CFG_FILE}');
+					// log('[Hix] Found setupEnv key. Appending value to command.');
 					args.add(keyValues["setupEnv"] + "&&");
 					//Sys.command(keyValues["setupEnv"]);
 					//Config.Save({key : exe + "Path", val : WhereIsFile(exe)});
 				}
 				else{
+					// log('[Hix] Unable to find setupEnv key.');
 					error('Unable to find the executable: ${exe}');
 					return -1;
 				}
@@ -623,7 +637,7 @@ class Hix {
 								{
 									if(t.val =="" || t.val==null)
 									{
-										error('[Hix: ${line}] Must specify a name for the embedded file!');
+										error('${line} Must specify a name for the embedded file!');
 										state = State.FinishFail;
 									}
 									else{
@@ -965,6 +979,7 @@ class Hix {
 		Sys.println('Hix.exe <inputFile> [buildName] OR');			
 		Sys.println('available flags:');
 		Sys.println('-clean Cleans any intermediate files (currently for .c and .cpp src files only)');
+		Sys.println('-gen Generate a hix.json config file if it does not exist');	
 		Sys.println('-l <inputFile> prints valid builds');
 		Sys.println('-e Tells hix not to delete generated embeded files after build completion');
 		Sys.println('-h prints help');
@@ -1073,12 +1088,19 @@ var inst: String = "
 }
 
 class Config{
-	static inline var CFG_FILE = "hix.json";
-	static var cfgPath = Path.join([Path.directory(Sys.programPath()), CFG_FILE]);
+	public static inline var CFG_FILE = "hix.json";
+	public static var cfgPath(default, null) = Path.join([Path.directory(Sys.programPath()), CFG_FILE]);
+
+	public static function Exists():Bool{ return FileSystem.exists(cfgPath);}
+	public static function Create(kvMap:Dynamic) { 
+			File.saveContent(cfgPath, Json.stringify(kvMap));
+	}
 
 	public static function Save(kv:KeyValue){
-		var keyValues:Map<String,String> = null;
-		if(!FileSystem.exists(cfgPath))
+		var keyValues:Dynamic = null;
+		if(kv == null || kv.key == null || kv.key.length == 0) return;
+
+		if(!Exists())
 			keyValues = new	Map<String, String>();
 		else{
 			var text = File.getContent(cfgPath);
@@ -1086,23 +1108,21 @@ class Config{
 		}
 	
 		if(kv.val == null || kv.val.length == 0)
-			keyValues.remove(kv.key);
+			Reflect.deleteField(keyValues, kv.key);
 		else
-			keyValues[kv.key] = kv.val;
-		
-		//Only save it if there is at least one key in the keyValues map
-		if(keyValues.keys().hasNext())
-			File.saveContent(cfgPath, Json.stringify(keyValues));
+			Reflect.setField(keyValues, kv.key, kv.val);
+		Create(keyValues);
 	}
 
 	public static function Get(key:String):String{
-		if(!FileSystem.exists(cfgPath))
+		if(!Exists() || key == null || key.length == 0)
 			return null;
 		else{
-			var text = File.getContent(cfgPath);
-			var keyValues:Map<String,String> = Json.parse(text);
-			if(keyValues.exists(key))
-				return keyValues[key];
+			var text:String = File.getContent(cfgPath);
+			var json:Dynamic = Json.parse(text);
+			if(Reflect.hasField(json, key)){
+				return Reflect.field(json, key);
+			}
 			else
 				return null;
 		}
