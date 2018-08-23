@@ -10,11 +10,8 @@ import sys.FileSystem;
 //Author: Pixelbyte studios
 //Date: April 2018
 //
-//Note: The above requires you have the haxe std library dlls installed on the system
-//      where you want to use Hix. That should not be a problem.
-//
-//::hix       -main Hix  -cpp bin --no-traces -dce full
-//::hix:debug -main Hix  -cpp bin
+//::hix       -main ${filenameNoExt}  -cpp bin --no-traces -dce full
+//::hix:debug -main ${filenameNoExt}  -cpp bin
 //
 enum State
 {
@@ -34,7 +31,7 @@ enum State
 typedef KeyValue = {key: String, val: String};
 
 class Hix {
-	static inline var VERSION = "0.41";
+	static inline var VERSION = "0.42";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -60,7 +57,9 @@ class Hix {
 	public static var OS = Sys.systemName();
 
 	//The executable key
-	static inline var EXE = "exe";
+	static inline var KEY_EXE = "exe";
+	//The find key. Syntax ::require=file|fileToRunIfNotFound
+	static inline var KEY_REQUIRE = "require";
 
 	//This is where we store any keyValue pairs we find before the hix header is found
 	var keyValues:Map<String,String>;
@@ -381,7 +380,7 @@ class Hix {
 		}
 		else
 		{
-			var exe:String = keyValues[EXE];
+			var exe:String = keyValues[KEY_EXE];
 			if(exe == null || exe.length == 0){
 				error('Exe is unknown or was not specified using //::exe\nExiting...');
 				return -1;
@@ -402,25 +401,19 @@ class Hix {
 					FileSystem.createDirectory(OBJ_DIR);
 			}
 
-			//See if the EXE is in the filepath AND if we have a setupEnv key/value pair
+			//See if the KEY_EXE is in the filepath AND if we have a setupEnv key/value pair
 			//If the exe can't be found, assume that the environment needs to be setup by calling 
 			//whatever the setupEnv command is
 			if(WhereIsFile(exe) == null){
-				// var exeKey = exe.split('.')[0] + "Path";
-				// var exePath = Config.Get(exeKey);
-				// if(exePath != null){
-				// 	args.add('set PATH=${Sys.environment()[ENV_PATH]};${exePath}& ');
-				// }
-				// else 
 				if(keyValues.exists("setupEnv")){
-					// log('[Hix] Unable to find key "${exeKey}" in ${Config.CFG_FILE}');
-					// log('[Hix] Found setupEnv key. Appending value to command.');
+					trace('[Hix] Unable to find key "${KEY_EXE}" in ${Config.CFG_FILE}');
+					trace('[Hix] Found setupEnv key. Appending value to command.');
 					args.add(keyValues["setupEnv"] + "&&");
 					//Sys.command(keyValues["setupEnv"]);
 					//Config.Save({key : exe + "Path", val : WhereIsFile(exe)});
 				}
 				else{
-					// log('[Hix] Unable to find setupEnv key.');
+					trace('[Hix] Unable to find setupEnv key.');
 					error('Unable to find the executable: ${exe}');
 					return -1;
 				}
@@ -494,13 +487,20 @@ class Hix {
 		var whitespace= ~/^\s+$/g;
 		var currentBuildArgs:Array<String> = null;
 		var prevBuildName:String = DEFAULT_BUILD_NAME;
-		fileType = fileName.split(".")[1].toLowerCase();
+
+		//Get the file's extension
+		fileType = new Path(fileName).ext;
+		if(fileType == null) fileType == "";
+		else fileType == fileType.toLowerCase();
 
 		//Set the default name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
 		if(ExtToExe.exists(fileType))
-			keyValues[EXE] = ExtToExe[fileType]
+			keyValues[KEY_EXE] = ExtToExe[fileType]
 		else
-			keyValues[EXE] = "";
+			keyValues[KEY_EXE] = "";
+
+		trace('file ext: $fileType');
+		trace('picked exe: ${keyValues[KEY_EXE]}');
 
 		//What line are we on
 		var line = -1;
@@ -541,7 +541,7 @@ class Hix {
 							if(t != null)
 							{
 								keyValues[t.key] = t.val;
-								if(t.key == EXE)
+								if(t.key == KEY_EXE)
 									log('[Hix] exe changed to: ${t.val}');
 								else if(t.key == "incDirs"){
 									var v = t.val.split(" ");
@@ -713,9 +713,11 @@ class Hix {
 				//Process special commands here
 				switch (matched)
 				{
-					case "filename":return filename;
+					case "filename":
+						return filename;
 					//Filename without the extension
-					case "filenameNoExt":return filename.split(".")[0];
+					case "filenameNoExt":
+						return new Path(filename).file;
 					case "datetime":
 						var date = Date.now();
 						var cmd = matched.split('=');
@@ -768,9 +770,10 @@ class Hix {
 	//
 	function IsStartHeader():Array<String>
 	{
-		//If we are not in a comment, return
+		//If we are not in a comment,or there is no text return
 		if(!inComment) return null;
 
+		trace('$text');
 		var header = new EReg(HEADER_START + "(:\\w+)?\\s*([^\\n]*)$","i");
 
 		//See if there is any stuff after the header declaration
@@ -779,7 +782,7 @@ class Hix {
 			var isBlank = ~/^\s*$/;
 			
 			//Did we find a buildName?
-			if(!isBlank.match(header.matched(1)) && header.matched(1).length > 1)
+			if(header.matched(1) != null && !isBlank.match(header.matched(1)) && header.matched(1).length > 1)
 				currentBuildName = header.matched(1).substr(1);
 			else 
 				currentBuildName = DEFAULT_BUILD_NAME;
