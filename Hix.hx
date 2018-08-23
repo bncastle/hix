@@ -31,7 +31,7 @@ enum State
 typedef KeyValue = {key: String, val: String};
 
 class Hix {
-	static inline var VERSION = "0.42";
+	static inline var VERSION = "0.43";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -229,7 +229,7 @@ class Hix {
 			if(inputFile == null)
 			{
 				PrintUsage();
-				return 1;
+				return 0;
 			}
 			else
 				log('Trying file: $inputFile');
@@ -255,17 +255,20 @@ class Hix {
 		else if(ProcessFlag("h", flags))
 		{
 			Hix.PrintHelp();
-			return 1;
+			return 0;
 		}
 		else if(ProcessFlag("u", flags))
 		{
 			Hix.PrintUsage();
-			return 1;
+			return 0;
+		}
+		else if(ProcessFlag("v", flags)){
+			PrintVersion();
+			return 0;
 		}
 
 		//Should we not delete generatedEmbeddedFiles?
 		var deleteEmbeddedFiles:Bool = !ProcessFlag("e", flags);
-
 
 		//look for the first VALID filename from the args
 		if(inputFile == null){
@@ -407,8 +410,15 @@ class Hix {
 			if(WhereIsFile(exe) == null){
 				if(keyValues.exists("setupEnv")){
 					trace('[Hix] Unable to find key "${KEY_EXE}" in ${Config.CFG_FILE}');
-					trace('[Hix] Found setupEnv key. Appending value to command.');
-					args.add(keyValues["setupEnv"] + "&&");
+
+					var setupCmd = keyValues["setupEnv"];
+					if(WhereIsFile(setupCmd) == null){
+						warn('Unable to find the setupEnv command :${setupCmd}. Ignoring...');
+					}
+					else{
+						trace('[Hix] Found setupEnv key. Appending value to command.');
+						args.add(setupCmd + "&&");
+					}
 					//Sys.command(keyValues["setupEnv"]);
 					//Config.Save({key : exe + "Path", val : WhereIsFile(exe)});
 				}
@@ -990,6 +1000,12 @@ class Hix {
 		Sys.println('-e Tells hix not to delete generated embeded files after build completion');
 		Sys.println('-h prints help');
 		Sys.println('-u prints usage info');	
+		Sys.println('-v prints version info');
+	}
+
+	static function PrintVersion() 
+	{
+		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
 	}
 
 	static function PrintHelp()
