@@ -1,7 +1,9 @@
 import sys.io.File;
 import haxe.io.Path;
-import haxe.Json;
 import sys.FileSystem;
+
+//Grab our supporting classes
+import lib.*;
 //
 //Description:
 // Hix is a utility that enables compiling a Haxe source file without having a
@@ -10,8 +12,8 @@ import sys.FileSystem;
 //Author: Pixelbyte studios
 //Date: April 2018
 //
-//::hix       -main ${filenameNoExt}  -cpp bin --no-traces -dce full
-//::hix:debug -main ${filenameNoExt}  -cpp bin
+//::hix       -main ${filenameNoExt} -cp src -cpp bin --no-traces -dce full
+//::hix:debug -main ${filenameNoExt} -cp src -cpp bin
 //
 enum State
 {
@@ -23,15 +25,16 @@ enum State
 	FinishFail;
 }
 
+enum FileGenType {AllNonTemp; MatchingKeys;}
+enum FileDelType {AllNonTemp; AllTemp; All;}
+
 //.c. .cpp, .cs, .hx, .js, .ts 
 //comments
 //	single line: //
 //	multiline: /* * /
 
-typedef KeyValue = {key: String, val: String};
-
 class Hix {
-	static inline var VERSION = "0.43";
+	static inline var VERSION = "0.44";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -372,7 +375,7 @@ class Hix {
 	//
 	public function Execute(buildName: String): Int
 	{
-		var embeddedFilesUsed: Array<String> = new Array<String>();
+		var usedEmbeddedTmpFiles: Array<String> = new Array<String>();
 	
 		if(!buildMap.exists(buildName) || buildMap[buildName].length == 0)
 		{
@@ -381,14 +384,15 @@ class Hix {
 		}
 		else
 		{
+			//Look for the exe to call for building
 			var exe:String = keyValues[KEY_EXE];
 			if(exe == null || exe.length == 0){
 				error('Exe is unknown or was not specified using //::exe\nExiting...');
 				return -1;
 			}
 
-			var args:List<String> = new List<String>();
 			//Check if there are any pre args
+			var args:List<String> = new List<String>();
 			if (keyValues.exists("preCmd"))
 			{
 				log('Appending PreCmd: ${keyValues["preCmd"]}');
@@ -402,9 +406,8 @@ class Hix {
 					FileSystem.createDirectory(OBJ_DIR);
 			}
 
-			//See if the KEY_EXE is in the filepath AND if we have a setupEnv key/value pair
-			//If the exe can't be found, assume that the environment needs to be setup by calling 
-			//whatever the setupEnv command is
+			//See if the KEY_EXE is in the filepath. If not, check for a setupEnv key/value pair
+			//and if found, assume that the environment needs to be setup by calling the setupEnv command
 			if(WhereIsFile(exe) == null){
 				if(keyValues.exists("setupEnv")){
 					trace('[Hix] Unable to find key "${KEY_EXE}" in ${Config.CFG_FILE}');
@@ -434,29 +437,30 @@ class Hix {
 			for(a in buildMap[buildName])
 				args.add(a);
 
+			//Check for references to any embedded files in the source file
+			trace('Embedded files in $filename: ${Lambda.count(embeddedFiles)}');
+			trace('Generate temp Files found in build args');
 			for (text in args){
 				//Windows filenames are case insensitive
-				if(OS == "Windows") text = text.toLowerCase();
+				//if(OS == "Windows") text = text.toLowerCase();
 
 				//search for any embedded files in the args and if found, create them and add them to a list
 				//to be deleted after the run is finished
-				for(key in embeddedFiles.keys()){
+				for(key in embeddedFiles.keys())
+				{
 					var embedded = embeddedFiles[key];
-					//Skip any that we already know are used
-					if(embeddedFilesUsed.indexOf(embedded.name) > -1) continue;
+					//Skip any non-temp file and any that we already know are used
+					if(!embedded.tmpFile || usedEmbeddedTmpFiles.indexOf(embedded.name) > -1) continue;
 					
-					//Is this file referenced or is it not a tmp file
-					if(!embedded.tmpFile || text.indexOf(embedded.name) > -1){
-						if(embedded.Exists())
-							warn('Embedded file: ${embedded.name} already exists. Ignoring embedded version.');
-						else if(embedded.Generate()){
-							if(!embedded.tmpFile)
-								log('[Hix] file generated: ${embedded.name}');
-							embeddedFilesUsed.push(embedded.name);
-						}
+					//Is this file referenced ?
+					if(text.indexOf(embedded.name) > -1){
+							usedEmbeddedTmpFiles.push(embedded.name);
 					}
 				}
 			}
+
+			GenerateEmbeddedFiles(MatchingKeys, usedEmbeddedTmpFiles);
+			GenerateEmbeddedFiles(AllNonTemp);
 
 			log('[Hix] Running build label: $buildName');
 			log(args.join(" ") + "\n");
@@ -464,25 +468,60 @@ class Hix {
 			//var retCode = Sys.command(exe, args);
 
 			//Delete any temp-create embedded files
-			if(embeddedFilesUsed.length > 0){
+			if(usedEmbeddedTmpFiles.length > 0){
 				if(deleteGeneratedEmbeddedFiles){
-					log('[Hix] cleaning up embedded files.');
-					for(name in embeddedFilesUsed){
-						var embedded = embeddedFiles[name];
-						try{
-							if(embedded.tmpFile && embedded.Exists())
-								embedded.Delete();
-						}
-						catch(ex:Dynamic) { 
-							error('Unable to delete embedded file: ${name}!');
-						}
-					}
+					DeleteEmbeddedFiles(AllTemp);
 				}
 				else{
-					log('[Hix] NOT cleaning up embedded files.');
+					for(name in usedEmbeddedTmpFiles){
+						log('[Hix] Temp file not deleted: $name');
+					}
 				}
 			}
 			return retCode;
+		}
+	}
+
+	function DeleteEmbeddedFiles(mode: FileDelType)
+	{
+		for (key in embeddedFiles.keys())
+		{
+			var embedded = embeddedFiles[key];
+			if(mode == AllNonTemp && embedded.tmpFile) continue;
+			else if(mode == AllTemp && !embedded.tmpFile) continue;
+
+			try{
+				if(embedded.tmpFile && embedded.Exists())
+					embedded.Delete();
+			}
+			catch(ex:Dynamic) { 
+				error('Unable to delete embedded file: ${embedded.name}!');
+			}			
+		}
+	}
+
+	function GenerateEmbeddedFiles(mode: FileGenType, keysToGenerate: Array<String> = null)
+	{
+		var type:String = if(mode == AllNonTemp) "file" else "tmp file";
+
+		//Generate ONLY the non-tmp files found
+		trace('Generate embedded ${type}s');
+		for (key in embeddedFiles.keys())
+		{
+			var embedded = embeddedFiles[key];
+
+			//Skip ALL temp files
+			if(mode == AllNonTemp && embedded.tmpFile) continue;
+			else if(mode == MatchingKeys && (keysToGenerate == null || keysToGenerate.indexOf(embedded.name) == -1)) continue;
+
+			if(embedded.Exists())
+				warn('Embedded $type: ${embedded.name} already exists. Ignoring embedded version.');
+			else if(embedded.Generate()){
+				log('[Hix] Embedded $type generated: ${embedded.name}');
+			}
+			else{
+				error('[Hix] unable to generate embedded $type: ${embedded.name}');
+			}
 		}
 	}
 
@@ -653,9 +692,9 @@ class Hix {
 									else{
 										log('[Hix] embedded file found: ${t.val}');
 										var filename: String = "";
-										if(OS == "Windows") 
-											filename = t.val.toLowerCase();
-										else
+										// if(OS == "Windows") 
+										// 	filename = t.val.toLowerCase();
+										// else
 											filename = t.val;
 										state = State.ParseEmbeddedFile;
 										currentFile = new EmbeddedFile(filename, t.key=="tmpfile");
@@ -666,7 +705,10 @@ class Hix {
 					case State.ParseEmbeddedFile:
 						if(!inComment){
 							if(currentFile.contents.length > 0){
-								embeddedFiles.set(currentFile.name, currentFile);
+								if(embeddedFiles.exists(currentFile.name))
+									error('Embedded file ${currentFile.name} already exists in $fileName! Skipping...');
+								else
+									embeddedFiles.set(currentFile.name, currentFile);
 								currentFile = null;
 							}
 							state = State.SearchingForOtherCommands;
@@ -1056,8 +1098,13 @@ var inst: String = "
  file contents
  */
  Any build tasks referring to this filename will cause it to be created before executing the build
- After the build has completed, the file will be deleted unless the '-e' flag is specified
- 
+ After the build has completed, the file will be deleted unless the '-e' flag is specified. Temp files
+ will not be created unless they are referred to in the build command
+
+ Non temp files can also be generated as well:
+ /*::genfile= [filename]
+ file contents
+ */
  =============================================================================
 			";
 			var params = {HixHeader: HEADER_START, ValidExtensions: VALID_EXTENSIONS.join(" ")};
@@ -1107,80 +1154,3 @@ var inst: String = "
 		}
 	}
 }
-
-class Config{
-	public static inline var CFG_FILE = "hix.json";
-	public static var cfgPath(default, null) = Path.join([Path.directory(Sys.programPath()), CFG_FILE]);
-
-	public static function Exists():Bool{ return FileSystem.exists(cfgPath);}
-	public static function Create(kvMap:Dynamic) { 
-			File.saveContent(cfgPath, Json.stringify(kvMap));
-	}
-
-	public static function Save(kv:KeyValue){
-		var keyValues:Dynamic = null;
-		if(kv == null || kv.key == null || kv.key.length == 0) return;
-
-		if(!Exists())
-			keyValues = new	Map<String, String>();
-		else{
-			var text = File.getContent(cfgPath);
-			keyValues = Json.parse(text);
-		}
-	
-		if(kv.val == null || kv.val.length == 0)
-			Reflect.deleteField(keyValues, kv.key);
-		else
-			Reflect.setField(keyValues, kv.key, kv.val);
-		Create(keyValues);
-	}
-
-	public static function Get(key:String):String{
-		if(!Exists() || key == null || key.length == 0)
-			return null;
-		else{
-			var text:String = File.getContent(cfgPath);
-			var json:Dynamic = Json.parse(text);
-			if(Reflect.hasField(json, key)){
-				return Reflect.field(json, key);
-			}
-			else
-				return null;
-		}
-	}
-}
-
-	class EmbeddedFile {
-		public var contents(default, null):StringBuf;
-		public var name(default, null):String;
-		public var tmpFile(default, null):Bool;
-
-		public function new(name:String, isTmp:Bool){
-			contents = new StringBuf();
-			this.name = name;
-			tmpFile =isTmp;
-		}
-
-		public function Exists(): Bool{
-			return FileSystem.exists(name);
-		}
-
-		public function Generate():Bool{
-			if(Exists()){
-				return false;
-			}
-			else{
-				trace('[Hix] creating embedded file: ${name}');
-				File.saveContent(name, contents.toString());
-				return true;
-			}
-		}
-
-		public function Delete(): Bool{
-			if(FileSystem.exists(name)){
-				FileSystem.deleteFile(name);
-				return true;
-			}
-			return false;
-		}
-	}

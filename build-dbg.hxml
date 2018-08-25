@@ -1,2 +1,3 @@
--main Hix 
+-main Hix
+-cp src
 -cpp bin

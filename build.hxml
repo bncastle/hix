@@ -1,4 +1,5 @@
 -main Hix 
+-cp src
 -cpp bin
 --no-traces
 -dce full

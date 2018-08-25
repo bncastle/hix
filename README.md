@@ -70,18 +70,29 @@ When Hix is executed, it normally determines the executable to run based on the 
 With the above command placed before any `hix::` headers, Hix will no longer execute the given build arguments
 using the default `Haxe.exe`, but will instead use `app.exe`
 
- Additionally, hix also supports embedded files:
- ```
- /*::tmpfile= [filename]
+Additionally, hix also supports embedded files:
+```
+/*::tmpfile= [filename]
  file contents
- */
- ```
- Any build tasks referring to this filename will cause it to be created before executing the build
- After the build has completed, the file will be deleted unless the '-e' flag is specified
- 
+*/
+```
+Any build tasks referring to this filename will cause it to be created before executing the build.
+Temp fileswill not be created unless they are referred to in the build command
+After the build has completed, the file will be deleted unless the '-e' flag is specified.
+
+Non temp files can also be generated as well:
+```
+/*::genfile= [filename]
+ file contents
+*/
+```
+
 Pre-commands are supported by using:
- //::preCmd = (command(s) to run before the main exe command)
- This can be used if you want to run a .bat file or several batch commands separated by '&&'
+```
+//::preCmd = (commands) 
+```
+to run before the main exe command)
+This can be used if you want to run a .bat file or several batch commands separated by '&&'
 
 [TODO: Explain better]
 If the main .exe to be executed cannot be found in the path, hix will look for 

@@ -1,2 +1,3 @@
--main Hix 
---hl hix.hl
+-main Hix
+-cp src
+-hl hix.hl
