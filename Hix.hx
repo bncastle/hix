@@ -58,15 +58,13 @@ class Hix {
 
 	//The executable key
 	static inline var KEY_EXE = "exe";
-	//The find key. Syntax ::require=file|fileToRunIfNotFound
-	static inline var KEY_REQUIRE = "require";
 
 	//This is where we store any keyValue pairs we find before the hix header is found
 	var keyValues:Map<String,String>;
 
 	//This allows us to embed files into an existing file and hix will extract it 
 	//to a temporary file for processing
-	var embeddedFiles:Map<String,String>;
+	var embeddedFiles:Map<String,EmbeddedFile>;
 
 	//If true, then Hix will delete any generated embedded files after execution
 	var deleteGeneratedEmbeddedFiles: Bool = true;
@@ -362,7 +360,7 @@ class Hix {
 	{
 		buildMap = new Map<String,Array<String>>();
 		keyValues = new Map<String,String>();
-		embeddedFiles = new Map<String,String>();
+		embeddedFiles = new Map<String,EmbeddedFile>();
 		deleteGeneratedEmbeddedFiles = deleteGeneratedFiles;
 
 		//Setup some defaults for C/C++ builds
@@ -442,21 +440,19 @@ class Hix {
 
 				//search for any embedded files in the args and if found, create them and add them to a list
 				//to be deleted after the run is finished
-				for(filename in embeddedFiles.keys()){
+				for(key in embeddedFiles.keys()){
+					var embedded = embeddedFiles[key];
 					//Skip any that we already know are used
-					if(embeddedFilesUsed.indexOf(filename) > -1) continue;
+					if(embeddedFilesUsed.indexOf(embedded.name) > -1) continue;
 					
-					//Is this file referenced?
-					if(text.indexOf(filename) > -1){
-						//Does it already exist?
-						if(FileSystem.exists(filename)){
-							warn('Embedded file: ${filename} already exists. Ignoring embedded version.');
-						}
-						//If not, create the file
-						else{
-							trace('[Hix] creating embedded file: ${filename}');
-							File.saveContent(filename, embeddedFiles[filename]);
-							embeddedFilesUsed.push(filename);
+					//Is this file referenced or is it not a tmp file
+					if(!embedded.tmpFile || text.indexOf(embedded.name) > -1){
+						if(embedded.Exists())
+							warn('Embedded file: ${embedded.name} already exists. Ignoring embedded version.');
+						else if(embedded.Generate()){
+							if(!embedded.tmpFile)
+								log('[Hix] file generated: ${embedded.name}');
+							embeddedFilesUsed.push(embedded.name);
 						}
 					}
 				}
@@ -471,12 +467,14 @@ class Hix {
 			if(embeddedFilesUsed.length > 0){
 				if(deleteGeneratedEmbeddedFiles){
 					log('[Hix] cleaning up embedded files.');
-					for(filename in embeddedFilesUsed){
+					for(name in embeddedFilesUsed){
+						var embedded = embeddedFiles[name];
 						try{
-							FileSystem.deleteFile(filename);
+							if(embedded.tmpFile && embedded.Exists())
+								embedded.Delete();
 						}
 						catch(ex:Dynamic) { 
-							error('Unable to delete embedded file: ${filename}!');
+							error('Unable to delete embedded file: ${name}!');
 						}
 					}
 				}
@@ -514,9 +512,8 @@ class Hix {
 
 		//What line are we on
 		var line = -1;
-		//Store the name of the embedded file we are curently parsing (if there are any) in here
-		var embeddedFilename:String ="";
-		var fileContents: StringBuf = null;
+		//Store the current embedded file we are parsing (if there is one) in here
+		var currentFile: EmbeddedFile = null;
 
 		inComment = false;
 		multilineComment = false;
@@ -547,7 +544,7 @@ class Hix {
 						}
 						else {
 							//Look for any Pre-Header key/values
-							var t = ParsePreHeaderKeyValue();
+							var t = ParseHeaderKeyValue();
 							if(t != null)
 							{
 								keyValues[t.key] = t.val;
@@ -642,11 +639,11 @@ class Hix {
 						if(inComment)
 						{
 							//Look for any other keyvalue commands
-							var t = ParsePreHeaderKeyValue();
+							var t = ParseHeaderKeyValue();
 							if(t != null)
 							{
 								trace('key: ${t.key}');
-								if(t.key=="tmpfile")
+								if(t.key=="tmpfile" || t.key == "genfile")
 								{
 									if(t.val =="" || t.val==null)
 									{
@@ -655,21 +652,22 @@ class Hix {
 									}
 									else{
 										log('[Hix] embedded file found: ${t.val}');
+										var filename: String = "";
 										if(OS == "Windows") 
-											embeddedFilename = t.val.toLowerCase();
+											filename = t.val.toLowerCase();
 										else
-											embeddedFilename = t.val;
+											filename = t.val;
 										state = State.ParseEmbeddedFile;
-										fileContents = new StringBuf();
+										currentFile = new EmbeddedFile(filename, t.key=="tmpfile");
 									}
 								}
 							}
 						}
 					case State.ParseEmbeddedFile:
 						if(!inComment){
-							if(fileContents.length > 0){
-								embeddedFiles.set(embeddedFilename, fileContents.toString());
-								fileContents = null;
+							if(currentFile.contents.length > 0){
+								embeddedFiles.set(currentFile.name, currentFile);
+								currentFile = null;
 							}
 							state = State.SearchingForOtherCommands;
 						}
@@ -678,9 +676,9 @@ class Hix {
 							//Make sure this is NOT the end of a multiline comment
 							//The multiline comment ending tag '*/' must be placed on a separate line
 							if(!endMultilineComment.match(text)){
-								if(fileContents.length > 0)
-									fileContents.add("\n");
-								fileContents.add(Std.string(text));
+								if(currentFile.contents.length > 0)
+									currentFile.contents.add("\n");
+								currentFile.contents.add(Std.string(text));
 							}
 						}
 					case State.FinishSuccess:
@@ -690,8 +688,9 @@ class Hix {
 		}
 		catch(ex:haxe.io.Eof) { }
 
-		if(fileContents != null && fileContents.length > 0){
-		 	embeddedFiles.set(embeddedFilename, fileContents.toString());
+		if(currentFile != null && currentFile.contents.length > 0){
+			embeddedFiles.set(currentFile.name, currentFile);
+			currentFile = null;
 		}
 		if (state == State.ParseEmbeddedFile || state == State.SearchingForOtherCommands)
 		 	state = State.FinishSuccess;
@@ -845,9 +844,9 @@ class Hix {
 	}
 
 	//
-	//Look for any key value declarations that occur BEFORE the header start sequence
+	//Look for any key value declarations
 	//
-	function ParsePreHeaderKeyValue() : KeyValue
+	function ParseHeaderKeyValue() : KeyValue
 	{
 		//If we are not in a comment, return
 		if(!inComment) return null;
@@ -997,7 +996,7 @@ class Hix {
 		Sys.println('-clean Cleans any intermediate files (currently for .c and .cpp src files only)');
 		Sys.println('-gen Generate a hix.json config file if it does not exist');	
 		Sys.println('-l <inputFile> prints valid builds');
-		Sys.println('-e Tells hix not to delete generated embeded files after build completion');
+		Sys.println('-e don\'t delete generated tmp files');
 		Sys.println('-h prints help');
 		Sys.println('-u prints usage info');	
 		Sys.println('-v prints version info');
@@ -1150,3 +1149,38 @@ class Config{
 		}
 	}
 }
+
+	class EmbeddedFile {
+		public var contents(default, null):StringBuf;
+		public var name(default, null):String;
+		public var tmpFile(default, null):Bool;
+
+		public function new(name:String, isTmp:Bool){
+			contents = new StringBuf();
+			this.name = name;
+			tmpFile =isTmp;
+		}
+
+		public function Exists(): Bool{
+			return FileSystem.exists(name);
+		}
+
+		public function Generate():Bool{
+			if(Exists()){
+				return false;
+			}
+			else{
+				trace('[Hix] creating embedded file: ${name}');
+				File.saveContent(name, contents.toString());
+				return true;
+			}
+		}
+
+		public function Delete(): Bool{
+			if(FileSystem.exists(name)){
+				FileSystem.deleteFile(name);
+				return true;
+			}
+			return false;
+		}
+	}
