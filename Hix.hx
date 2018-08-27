@@ -1,3 +1,4 @@
+import sys.net.Address;
 import sys.io.File;
 import haxe.io.Path;
 import sys.FileSystem;
@@ -34,7 +35,7 @@ enum FileDelType {AllNonTemp; AllTemp; All;}
 //	multiline: /* * /
 
 class Hix {
-	static inline var VERSION = "0.44";
+	static inline var VERSION = "0.45";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -43,17 +44,19 @@ class Hix {
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static inline var OBJ_DIR = "obj";
 
+	//Special hix.json config keys
+	static inline var KEY_AUTHOR = "Author";
+
+
 	static var DEFAULT_CFLAGS = '/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:${OBJ_DIR}\\';
 	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link /LTCG ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
 
-	static inline var ENV_PATH = "Path";
-
-	static var VALID_EXTENSIONS = [".hx", ".cs", ".c", ".cpp", ".js",".ts"];
 	static var ExtToExe:Map<String,String>= [
 		"hx" => "haxe.exe",
 		"cs" => "csc.exe",
 		"c" => "cl.exe",
 		"cpp" => "cl.exe",
+		"js" => "node.exe",
 		"ts" => "tsc.exe",
 	];
 
@@ -94,127 +97,6 @@ class Hix {
 
 	var buildMap: Map<String,Array<String>>;
 
-	static function error(msg:Dynamic)
-	{
-		Sys.println('[Hix] Error: $msg');
-	}
-
-	static function warn(msg:Dynamic)
-	{
-		Sys.println('[Hix] Warning: $msg');
-	}
-
-	static function log(msg:Dynamic)
-	{
-		Sys.println(msg);
-	}
-
-	static function GetFilesWithExt(dir:String, ext:String):Array<String>
-	{
-		var files = FileSystem.readDirectory(dir);
-		var filtered = files.filter(function(name)
-		{
-			return ext == null || StringTools.endsWith(name, ext);
-		});
-
-		return filtered;
-	}
-
-	//Looks for and removes all boolean flags from the given array
-	//and puts them into the static flags array
-	static function ParseArgOptions(args:Array<String>): Array<String>
-	{
-		var flags = new Array<String>();
-		var i = args.length -1;
-		while(i >= 0)
-		{
-			//A binary flag does not have an '='
-			if(StringTools.startsWith(args[i],"-") && args[i].indexOf("=") == -1)
-			{
-				//Remove any leading.trailing spaces
-				args[i] = StringTools.trim(args[i]);
-				flags.push(args[i].substr(1));
-				args.splice(i, 1);
-			}
-			i--;
-		}
-		return flags;
-	}
-
-	//Returns the first .hx file and removes it from the array
-	//returns null otherwise
-	static function GetFirstValidFileFromArgs(args:Array<String>) : String
-	{
-		for(arg in args)
-		{
-			var fullName = sys.FileSystem.fullPath(arg);
-			if(sys.FileSystem.exists(fullName))
-				return arg;
-		}
-		return null;
-	}
-
-	//Returns the 1st non-filename and removes it from the array
-	//returns null, otherwise
-	static function ParseFirstNonFilename(args:Array<String>):String
-	{
-		var i = args.length -1;
-		while(i >= 0)
-		{
-			var p = new Path(args[i]);
-			if(p.ext == null)
-			{
-				var retVal = StringTools.trim(args[i]);
-				args.splice(i,1);
-				return retVal;
-			}
-			i--;
-		}
-		return null;
-	}
-
-	static function FindFirstFileInDirWithExt(currentDirectory:String, ext:String) : String
-	{
-		//look for all files matching the given extension
-		var files = GetFilesWithExt(currentDirectory, ext);
-		if (files == null) return null;
-
-		//If there is only 1 .hx file then return it
-		if(files.length == 1)
-			return files[0];
-		else 
-		{
-			if(files.length > 1){
-				log('[Hix] Found ${files.length} files with extension ${ext}');
-				return files[0];
-			}
-			return null;
-		}
-	}
-
-	static function FindFirstFileInValidExts(currentDirectory:String) : String
-	{
-		for(e in VALID_EXTENSIONS)
-		{
-			var filename = FindFirstFileInDirWithExt(currentDirectory, e);
-			if(filename != null) return filename;
-		}
-		return null;
-	}
-
-	//Looks for the given string within the specified arry
-	//if it is found it is removed and true is returned
-	//
-	static function ProcessFlag(argName: String, args:Array<String>):Bool
-	{
-		var index = args.indexOf(argName);
-		if(index > -1){
-			args.splice(index, 1);
-			return true;
-		}
-		return false;
-	}
-
 	static function main():Int 	
 	{
 		var inputFile:String = null;
@@ -226,120 +108,204 @@ class Hix {
 		if(Sys.args().length == 0 )
 		{
 			//look for any .hx file in the current directory
-			inputFile = FindFirstFileInValidExts(cwd);
+			inputFile = Util.FindFirstFileInValidExts(cwd, ExtToExe);
 			if(inputFile == null)
 			{
-				PrintUsage();
+				Log.log(Generate.Usage(VERSION));
 				return 0;
 			}
 			else
-				log('Trying file: $inputFile');
+				Log.log('Trying file: $inputFile');
 		}
 
 		//Get any command line args
 		var args:Array<String> = Sys.args();
 
 		//Strip any bool flags from args
-		var flags = ParseArgOptions(args);
+		var flags = Util.ParseArgOptions(args);
 
 		//Check for any command line switches here
-		if(ProcessFlag("gen", flags)){
+		if(Util.ProcessFlag("gen", flags)){
 			if(!Config.Exists()){
-				Config.Create(["key" => "value"]);
-				log('[Hix] Creating new Config file at: ${Config.cfgPath}');
+				Config.Create(["key" => "value", "key2"=> "value2"]);
+				Log.log('[Hix] Creating new Config file at: ${Config.cfgPath}');
 			}
 			else{
-				log('[Hix] Config file already exists at: ${Config.cfgPath}');
+				Log.log('[Hix] Config file already exists at: ${Config.cfgPath}');
 			}
 			return 1;
 		}
-		else if(ProcessFlag("h", flags))
+		else if(Util.ProcessFlag("h", flags))
 		{
-			Hix.PrintHelp();
+			var validExt:Array<String> = new Array<String>();
+			for(e in ExtToExe.keys()) validExt.push(e);
+			Log.log(Generate.Help(HEADER_START, validExt));
 			return 0;
 		}
-		else if(ProcessFlag("u", flags))
+		else if(Util.ProcessFlag("u", flags))
 		{
-			Hix.PrintUsage();
+			Log.log(Generate.Usage(VERSION));
 			return 0;
 		}
-		else if(ProcessFlag("v", flags)){
-			PrintVersion();
+		else if(Util.ProcessFlag("v", flags)){
+			Log.log(VersionString());
+			return 0;
+		}
+		else if(Util.ProcessFlag("ks", flags)){
+			//The argument should be the very next one in the args list
+			if(args.length == 0 || args[0].indexOf(':') == -1){
+				Log.error('Expected a key/value in the form key:value');
+				return 1;
+			}
+			else{
+				var kv = args[0].split(':');
+				var key = StringTools.trim(kv[0]);
+				var val = StringTools.trim(kv[1]);
+				if(kv.length < 2 || val.length == 0){
+					Log.error('Expected a key/value in the form key:value');
+					return 1;
+				}
+				else{
+					Config.Set({key: key, val: val});
+					Config.Save();
+					return 0;
+				}
+			}
+		}
+		else if(Util.ProcessFlag("kd", flags)){
+			//The argument should be the very next one in the args list
+			var valid = ~/[A-Za-z_]+/i;
+			if(args.length == 0 || !valid.match(args[0]) ){
+				Log.error('Expected the name of a key!');
+				return 1;
+			}
+			else{
+				var key = StringTools.trim(args[0]);
+				Config.Set({key: key, val: null});
+				Config.Save();
+				return 0;
+			}
+		}
+		else if(Util.ProcessFlag("kg", flags)){
+			//The argument should be the very next one in the args list
+			var valid = ~/[A-Za-z_]+/i;
+			if(args.length == 0 || !valid.match(args[0]) ){
+				Log.error('Expected the name of a key!');
+				return 1;
+			}
+			else{
+				var key = StringTools.trim(args[0]);
+				var val = Config.Get(key);
+				if(val == null)
+					Log.warn('[Hix] keyname "$key" not found');
+				else
+					Log.log('[Hix] found key:$key => $val');
+				return 0;
+			}
+		}
+		else if(Util.ProcessFlag("genheader", flags)){
+			var filePath = Util.GetFirstFilenameFromArgs(args, false);
+			if(filePath != null){
+				var ext = Util.GetExt(filePath);
+				var content = Generate.Header(ext, {Author : Config.Get(KEY_AUTHOR), SetupEnv : "vscmd64.bat"});
+				if(!FileSystem.exists(filePath)){
+					if(content != null)
+						File.saveContent(filePath, content);
+				}
+				else{ //The file exists so we must do more
+					var existingText = File.getContent(filePath);
+					//Search the file for a hix header
+					if(existingText.indexOf(HEADER_START) > -1){
+						Log.warn('[Hix] found an existing header in "$filePath" Exiting');
+						return 0;
+					}
+					else{
+						try{
+							File.saveContent(filePath, content + existingText);
+						}
+						catch(ex:Dynamic){
+							Log.error(new String(ex));
+						}
+					}
+				}
+			}
+
+			//Log.log(Generate.DefaultHxCHeader(Config.Get(KEY_AUTHOR), null, "lib"));
 			return 0;
 		}
 
 		//Should we not delete generatedEmbeddedFiles?
-		var deleteEmbeddedFiles:Bool = !ProcessFlag("e", flags);
+		var deleteEmbeddedFiles:Bool = !Util.ProcessFlag("e", flags);
 
 		//look for the first VALID filename from the args
 		if(inputFile == null){
-			inputFile = GetFirstValidFileFromArgs(args);
+			inputFile = Util.GetFirstFilenameFromArgs(args);
 
 			if(inputFile == null)
 			{
 				//look for any .hx file in the current directory
-				inputFile = FindFirstFileInValidExts(cwd);
+				inputFile = Util.FindFirstFileInValidExts(cwd, ExtToExe);
 				if(inputFile == null)
 				{
-					PrintUsage();
+					Log.log(Generate.Usage(VERSION));
 					return 1;
 				}
 				else
-					log('Trying file: $inputFile');
+					Log.log('Trying file: $inputFile');
 			}
 		}
 
 		//See if there is a build name specified
-		inputBuildName = ParseFirstNonFilename(args);
+		inputBuildName = Util.ParseFirstNonFilename(args);
 		if(inputBuildName == null) inputBuildName = DEFAULT_BUILD_NAME;
 
 		//Are we missing an input file?
 		if(inputFile == null)
 		{
-			error('Unable to find any valid files!');
+			Log.error('Unable to find any valid files!');
 			return 1;
 		}
 
 		//Check if file exists
 		if(!FileSystem.exists(inputFile))
 		{
-			error('File: $inputFile does not exist!');
+			Log.error('File: $inputFile does not exist!');
 			return 1;
 		}
 
 		var h = new Hix(deleteEmbeddedFiles);
 		h.ParseFile(inputFile);
 
-		if(ProcessFlag("clean", flags)){
+		if(Util.ProcessFlag("clean", flags)){
 			if(h.fileType == "c" || h.fileType == "cpp"){
 				if(FileSystem.exists(OBJ_DIR)){
-					log('[Hix] Cleaning ${OBJ_DIR} directory');
-					DeleteDir(OBJ_DIR);
+					Log.log('[Hix] Cleaning ${OBJ_DIR} directory');
+					Util.DeleteDir(OBJ_DIR);
 				}
 				else{
-					log('[Hix] No ${OBJ_DIR} directory exists');
+					Log.log('[Hix] No ${OBJ_DIR} directory exists');
 				}
 			}
 			else{
-				log('[Hix] Currently only supports cleaning for .c and .cpp files.');
+				Log.log('[Hix] Currently only supports cleaning for .c and .cpp files.');
 			}
 			return 1;
 		}
 
-		if(ProcessFlag("l", flags))
+		if(Util.ProcessFlag("l", flags))
 		{
 			if(h.buildMap.keys().hasNext())
 			{
-				log('Available Build labels in: $inputFile');
-				log('-----------------------');
+				Log.log('Available Build labels in: $inputFile');
+				Log.log('-----------------------');
 				for(buildName in h.buildMap.keys())
 				{
-					log('$buildName');
+					Log.log('$buildName');
 				}
 			}
 			else
 			{
-				error('No build instructions found in: $inputFile');
+				Log.error('No build instructions found in: $inputFile');
 			}
 			return 1;
 		}
@@ -349,12 +315,12 @@ class Hix {
 			return h.Execute(inputBuildName);
 		}
 		else if(h.state == SearchingForHeader){
-			error("Unable to find a hix header!");
+			Log.error("Unable to find a hix header!");
 			return 1;
 		}
 		else{
 			trace('Parser State: ${h.state}');
-			error("There was a problem!");
+			Log.error("There was a problem!");
 			return 1;
 		}
 	}
@@ -379,7 +345,7 @@ class Hix {
 	
 		if(!buildMap.exists(buildName) || buildMap[buildName].length == 0)
 		{
-			error('[Hix] No compiler args found for: $buildName');
+			Log.error('[Hix] No compiler args found for: $buildName');
 			return -1;
 		}
 		else
@@ -387,7 +353,7 @@ class Hix {
 			//Look for the exe to call for building
 			var exe:String = keyValues[KEY_EXE];
 			if(exe == null || exe.length == 0){
-				error('Exe is unknown or was not specified using //::exe\nExiting...');
+				Log.error('Exe is unknown or was not specified using //::exe\nExiting...');
 				return -1;
 			}
 
@@ -395,7 +361,7 @@ class Hix {
 			var args:List<String> = new List<String>();
 			if (keyValues.exists("preCmd"))
 			{
-				log('Appending PreCmd: ${keyValues["preCmd"]}');
+				Log.log('Appending PreCmd: ${keyValues["preCmd"]}');
 				args.add(keyValues["preCmd"]);
 			}
 
@@ -408,24 +374,24 @@ class Hix {
 
 			//See if the KEY_EXE is in the filepath. If not, check for a setupEnv key/value pair
 			//and if found, assume that the environment needs to be setup by calling the setupEnv command
-			if(WhereIsFile(exe) == null){
+			if(Util.WhereIsFile(exe) == null){
 				if(keyValues.exists("setupEnv")){
 					trace('[Hix] Unable to find key "${KEY_EXE}" in ${Config.CFG_FILE}');
 
 					var setupCmd = keyValues["setupEnv"];
-					if(WhereIsFile(setupCmd) == null){
-						warn('Unable to find the setupEnv command :${setupCmd}. Ignoring...');
+					if(Util.WhereIsFile(setupCmd) == null){
+						Log.warn('Unable to find the setupEnv command :${setupCmd}. Ignoring...');
 					}
 					else{
 						trace('[Hix] Found setupEnv key. Appending value to command.');
 						args.add(setupCmd + "&&");
 					}
 					//Sys.command(keyValues["setupEnv"]);
-					//Config.Save({key : exe + "Path", val : WhereIsFile(exe)});
+					//Config.Set({key : exe + "Path", val : WhereIsFile(exe)});
 				}
 				else{
 					trace('[Hix] Unable to find setupEnv key.');
-					error('Unable to find the executable: ${exe}');
+					Log.error('Unable to find the executable: ${exe}');
 					return -1;
 				}
 			}
@@ -462,8 +428,8 @@ class Hix {
 			GenerateEmbeddedFiles(MatchingKeys, usedEmbeddedTmpFiles);
 			GenerateEmbeddedFiles(AllNonTemp);
 
-			log('[Hix] Running build label: $buildName');
-			log(args.join(" ") + "\n");
+			Log.log('[Hix] Running build label: $buildName');
+			Log.log(args.join(" ") + "\n");
 			var retCode = Sys.command(args.join(" "));
 			//var retCode = Sys.command(exe, args);
 
@@ -474,7 +440,7 @@ class Hix {
 				}
 				else{
 					for(name in usedEmbeddedTmpFiles){
-						log('[Hix] Temp file not deleted: $name');
+						Log.log('[Hix] Temp file not deleted: $name');
 					}
 				}
 			}
@@ -495,7 +461,7 @@ class Hix {
 					embedded.Delete();
 			}
 			catch(ex:Dynamic) { 
-				error('Unable to delete embedded file: ${embedded.name}!');
+				Log.error('Unable to delete embedded file: ${embedded.name}!');
 			}			
 		}
 	}
@@ -515,12 +481,12 @@ class Hix {
 			else if(mode == MatchingKeys && (keysToGenerate == null || keysToGenerate.indexOf(embedded.name) == -1)) continue;
 
 			if(embedded.Exists())
-				warn('Embedded $type: ${embedded.name} already exists. Ignoring embedded version.');
+				Log.warn('Embedded $type: ${embedded.name} already exists. Ignoring embedded version.');
 			else if(embedded.Generate()){
-				log('[Hix] Embedded $type generated: ${embedded.name}');
+				Log.log('[Hix] Embedded $type generated: ${embedded.name}');
 			}
 			else{
-				error('[Hix] unable to generate embedded $type: ${embedded.name}');
+				Log.error('[Hix] unable to generate embedded $type: ${embedded.name}');
 			}
 		}
 	}
@@ -536,7 +502,7 @@ class Hix {
 		var prevBuildName:String = DEFAULT_BUILD_NAME;
 
 		//Get the file's extension
-		fileType = new Path(fileName).ext;
+		fileType = Util.GetExt(fileName);
 		if(fileType == null) fileType == "";
 		else fileType == fileType.toLowerCase();
 
@@ -588,7 +554,7 @@ class Hix {
 							{
 								keyValues[t.key] = t.val;
 								if(t.key == KEY_EXE)
-									log('[Hix] exe changed to: ${t.val}');
+									Log.log('[Hix] exe changed to: ${t.val}');
 								else if(t.key == "incDirs"){
 									var v = t.val.split(" ");
 									v = v.filter(function(str) return str.length > 0 && !whitespace.match(str));
@@ -633,7 +599,7 @@ class Hix {
 					case State.SearchingForArgs:
 						if(!inComment && currentBuildArgs.length == 0) //Couldn't find anything
 						{
-							error("Unable to find any compiler args in the header!");
+							Log.error("Unable to find any compiler args in the header!");
 							state = State.FinishFail;
 							break;
 						}
@@ -669,7 +635,7 @@ class Hix {
 								if(grabbedArgs != null && grabbedArgs.length > 0)
 									currentBuildArgs = currentBuildArgs.concat(grabbedArgs);
 								// else{
-								// 	error('Unable to grab args. Offending text:\n${text}');
+								// 	Log.error('Unable to grab args. Offending text:\n${text}');
 								// 	state = State.FinishFail;
 								// }
 							}
@@ -686,11 +652,11 @@ class Hix {
 								{
 									if(t.val =="" || t.val==null)
 									{
-										error('${line} Must specify a name for the embedded file!');
+										Log.error('${line} Must specify a name for the embedded file!');
 										state = State.FinishFail;
 									}
 									else{
-										log('[Hix] embedded file found: ${t.val}');
+										Log.log('[Hix] embedded file found: ${t.val}');
 										var filename: String = "";
 										// if(OS == "Windows") 
 										// 	filename = t.val.toLowerCase();
@@ -706,7 +672,7 @@ class Hix {
 						if(!inComment){
 							if(currentFile.contents.length > 0){
 								if(embeddedFiles.exists(currentFile.name))
-									error('Embedded file ${currentFile.name} already exists in $fileName! Skipping...');
+									Log.error('Embedded file ${currentFile.name} already exists in $fileName! Skipping...');
 								else
 									embeddedFiles.set(currentFile.name, currentFile);
 								currentFile = null;
@@ -780,7 +746,7 @@ class Hix {
 					default:
 						if(keyValues.exists(matched)){
 							if(matched == key){
-								error('Recursive key reference detected: ${key}');
+								Log.error('Recursive key reference detected: ${key}');
 							return r.matched(0);
 							}
 							else
@@ -804,7 +770,7 @@ class Hix {
 
 		if(buildMap.exists(buildName))
 		{
-			error('Found duplicate build name: $buildName in $filename!');
+			Log.error('Found duplicate build name: $buildName in $filename!');
 			state = State.FinishFail;
 			return;
 		}
@@ -1030,127 +996,8 @@ class Hix {
 		}
 	}
 
-	static function PrintUsage()
+	static function VersionString() : String
 	{
-		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
-		Sys.println('Hix.exe <inputFile> [buildName] OR');			
-		Sys.println('available flags:');
-		Sys.println('-clean Cleans any intermediate files (currently for .c and .cpp src files only)');
-		Sys.println('-gen Generate a hix.json config file if it does not exist');	
-		Sys.println('-l <inputFile> prints valid builds');
-		Sys.println('-e don\'t delete generated tmp files');
-		Sys.println('-h prints help');
-		Sys.println('-u prints usage info');	
-		Sys.println('-v prints version info');
-	}
-
-	static function PrintVersion() 
-	{
-		Sys.println('== Hix Version $VERSION by Pixelbyte Studios ==');
-	}
-
-	static function PrintHelp()
-	{
-var inst: String = "
- Hix is a utility that lets you to store compile settings inside of source files.
- Currently supported languages are: ::ValidExtensions::	
- Put the start header near the top of your source file and add desired compile args:
- //::HixHeader:: -main Main -neko example.n 
- If you want, you can put the args on multiple lines:
- //::HixHeader::
- //-main Main
- //-neko hi.n
- Or you can put it them a multi-line comment:
- /*
- ::HixHeader::
- -main Main
- -neko hi.n
- */
- 
- Hix also supports multiple build configs.
- For example, in a haxe .hx file you can specify both cpp and neko target builds. 
- 
- //::HixHeader:::target1 -main Main --no-traces -dce full -cpp bin
- //::HixHeader:::target2 -main HR --no-traces -dce full -neko hr.n
- 
- Then invoke your desired build config by adding the name of the config (which
- in this case is either target1 or target2):
- hix Main.hx target1 <- Builds target1
- hix Main.hx target2 <- Builds target2
- 
- Then compile by running:
- hix <inputFile>
- 
- No more hxml or makefiles needed!
- 
- Special arguments:
- ${filename} -> gets the name of the current file
- ${filenameNoExt} -> gets the name of the current file without the extension
- ${datetime} -> <optional strftime format specification>] ->Note not all strftime settings are supported
- ${datetime} -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
- 
- You can also change the program that is executed with the args (by default it is haxe)
- by placing a special command BEFORE the start header:
- //::exe=<name of executable>
-
- Additionally, hix also supports embedded files:
- /*::tmpfile= [filename]
- file contents
- */
- Any build tasks referring to this filename will cause it to be created before executing the build
- After the build has completed, the file will be deleted unless the '-e' flag is specified. Temp files
- will not be created unless they are referred to in the build command
-
- Non temp files can also be generated as well:
- /*::genfile= [filename]
- file contents
- */
- =============================================================================
-			";
-			var params = {HixHeader: HEADER_START, ValidExtensions: VALID_EXTENSIONS.join(" ")};
-			var template = new haxe.Template(inst);
-            var output = template.execute(params);
-            Sys.print(output);
-	}
-
-	//Checks for the given file within the current environment's path string
-	//returns the path (not the filename) to the file if it exists, null otherwise
-	public static function WhereIsFile(filename:String):String
-	{
-		var pathEnv = Sys.environment()[ENV_PATH];
-		if(pathEnv == null){
-			warn("Unable to get current environment Path!");
-			return null;
-		}
-
-		//Try all the paths in the environment to see if we can find the file
-		var paths = pathEnv.split(';');
-		for(path in paths){
-			var fullPath = Path.join([path, filename]);
-			if(FileSystem.exists(fullPath)){
-				trace('path for ${filename} found: ${path}');
-				return path;
-			}
-		}
-		return null;
-	}
-
-	public static function DeleteDir(path:String) : Void
-	{
-		if (sys.FileSystem.exists(path) && sys.FileSystem.isDirectory(path))
-		{
-			var entries = sys.FileSystem.readDirectory(path);
-			for (entry in entries) {
-				var filePath = Path.join([path,entry]);
-				if (sys.FileSystem.isDirectory(filePath)) {
-					DeleteDir(filePath);
-					sys.FileSystem.deleteDirectory(filePath);
-				} 
-				else {
-					sys.FileSystem.deleteFile(filePath);
-				}
-			}
-			sys.FileSystem.deleteDirectory(path);
-		}
+		return '== Hix Version $VERSION by Pixelbyte Studios ==';
 	}
 }

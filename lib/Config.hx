@@ -6,6 +6,9 @@ import haxe.io.Path;
 import sys.FileSystem;
 
 class Config{
+	//This holds the json content of our config file
+	static var json:Dynamic;
+
 	public static inline var CFG_FILE = "hix.json";
 	public static var cfgPath(default, null) = Path.join([Path.directory(Sys.programPath()), CFG_FILE]);
 
@@ -14,35 +17,53 @@ class Config{
 			File.saveContent(cfgPath, Json.stringify(kvMap));
 	}
 
-	public static function Save(kv:KeyValue){
-		var keyValues:Dynamic = null;
+	static function Init(){
+		if(json == null){
+			if(!Exists()){
+				trace('config not found. Generate a new one.');
+				json = {};
+			}
+			else{
+				trace('Get config from hr.json.');
+				var text:String = File.getContent(cfgPath);
+				json = Json.parse(text);
+			}
+		}
+	}
+
+	public static function Set(kv:KeyValue){
 		if(kv == null || kv.key == null || kv.key.length == 0) return;
 
-		if(!Exists())
-			keyValues = new	Map<String, String>();
-		else{
-			var text = File.getContent(cfgPath);
-			keyValues = Json.parse(text);
+		Init();
+
+		if(kv.val == null || kv.val.length == 0){
+			trace('delete key: ${kv.key}');
+			Reflect.deleteField(json, kv.key);
 		}
-	
-		if(kv.val == null || kv.val.length == 0)
-			Reflect.deleteField(keyValues, kv.key);
-		else
-			Reflect.setField(keyValues, kv.key, kv.val);
-		Create(keyValues);
+		else{
+			trace('set key: ${kv.key} to: ${kv.val}');
+			Reflect.setField(json, kv.key, kv.val);
+		}
 	}
 
 	public static function Get(key:String):String{
-		if(!Exists() || key == null || key.length == 0)
+		if(key == null || key.length == 0)
 			return null;
 		else{
-			var text:String = File.getContent(cfgPath);
-			var json:Dynamic = Json.parse(text);
+			Init();
 			if(Reflect.hasField(json, key)){
-				return Reflect.field(json, key);
+				return return Reflect.field(json, key);
 			}
 			else
 				return null;
 		}
+	}
+
+	public static function Save(){
+		var f = Reflect.fields(json);
+		if(json != null && f != null && f.length > 0)
+			File.saveContent(cfgPath, Json.stringify(json));
+		else if(Exists())
+			FileSystem.deleteFile(cfgPath);
 	}
 }
