@@ -67,7 +67,7 @@ class Util{
 		var files = FileSystem.readDirectory(dir);
 		var filtered = files.filter(function(name)
 		{
-			return ext == null || StringTools.endsWith(name, ext);
+			return !FileSystem.isDirectory(name) && (ext == null || StringTools.endsWith(name, ext));
 		});
 		return filtered;
 	}

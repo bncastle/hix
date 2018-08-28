@@ -1,3 +1,4 @@
+import haxe.Template;
 import sys.net.Address;
 import sys.io.File;
 import haxe.io.Path;
@@ -35,7 +36,7 @@ enum FileDelType {AllNonTemp; AllTemp; All;}
 //	multiline: /* * /
 
 class Hix {
-	static inline var VERSION = "0.45";
+	static inline var VERSION = "0.46";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -45,7 +46,8 @@ class Hix {
 	static inline var OBJ_DIR = "obj";
 
 	//Special hix.json config keys
-	static inline var KEY_AUTHOR = "Author";
+	static inline var KEY_AUTHOR    = "Author";
+	static inline var KEY_SETUP_ENV = "SetupEnv";
 
 
 	static var DEFAULT_CFLAGS = '/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:${OBJ_DIR}\\';
@@ -60,6 +62,7 @@ class Hix {
 		"ts" => "tsc.exe",
 	];
 
+	//returns the name of the system this is running on
 	public static var OS = Sys.systemName();
 
 	//The executable key
@@ -125,17 +128,7 @@ class Hix {
 		var flags = Util.ParseArgOptions(args);
 
 		//Check for any command line switches here
-		if(Util.ProcessFlag("gen", flags)){
-			if(!Config.Exists()){
-				Config.Create(["key" => "value", "key2"=> "value2"]);
-				Log.log('[Hix] Creating new Config file at: ${Config.cfgPath}');
-			}
-			else{
-				Log.log('[Hix] Config file already exists at: ${Config.cfgPath}');
-			}
-			return 1;
-		}
-		else if(Util.ProcessFlag("h", flags))
+		if(Util.ProcessFlag("h", flags))
 		{
 			var validExt:Array<String> = new Array<String>();
 			for(e in ExtToExe.keys()) validExt.push(e);
@@ -203,11 +196,29 @@ class Hix {
 				return 0;
 			}
 		}
-		else if(Util.ProcessFlag("genheader", flags)){
+		if(Util.ProcessFlag("cfg", flags)){
+			if(!Config.Exists()){
+				File.saveContent(Config.cfgPath, Generate.DefaultConfig());
+				Log.log('[Hix] Creating new Config file at: ${Config.cfgPath}');
+			}
+			else{
+				Log.log('[Hix] Config file already exists at: ${Config.cfgPath}');
+			}
+			return 1;
+		}
+		else if(Util.ProcessFlag("hdr", flags)){
+			//Setup Template globals (these have lower priority than the macros passed into template.execute())
+			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
+
 			var filePath = Util.GetFirstFilenameFromArgs(args, false);
 			if(filePath != null){
 				var ext = Util.GetExt(filePath);
-				var content = Generate.Header(ext, {Author : Config.Get(KEY_AUTHOR), SetupEnv : "vscmd64.bat"});
+				var template = Config.Get(ext+"Header");
+				if(template == null){
+					Log.error('Unable to find ${ext+"Header"} key in ${Config.CFG_FILE}');
+					return 1;
+				}
+				var content = Generate.Header(template, {Author : Config.Get(KEY_AUTHOR), SetupEnv : Config.Get(KEY_SETUP_ENV)});
 				if(!FileSystem.exists(filePath)){
 					if(content != null)
 						File.saveContent(filePath, content);
@@ -229,8 +240,6 @@ class Hix {
 					}
 				}
 			}
-
-			//Log.log(Generate.DefaultHxCHeader(Config.Get(KEY_AUTHOR), null, "lib"));
 			return 0;
 		}
 

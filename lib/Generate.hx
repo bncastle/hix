@@ -2,15 +2,6 @@ package lib;
 
 class Generate {
 
-	static var ExtToExe:Map<String, Map<String,String> -> String>= [
-		"hx" => DefaultHxCHeader,
-		"cs" => DefaultCSHeader,
-		"c" => DefaultCHeader,
-		"cpp" => DefaultCHeader,
-		"js" => null,
-		"ts" => null,
-	];
-
     public static function Help(headerStart:String, validExtensions:Array<String>):String{
 var inst: String = "
  Hix is a utility that lets you to store compile settings inside of source files.
@@ -78,8 +69,8 @@ var inst: String = "
 == Hix Version ::programVersion:: by Pixelbyte Studios ==
 Hix.exe <flags> <inputFile> [buildName]			
 available flags:
+-v prints version info
 -clean Cleans any intermediate files (currently for .c and .cpp src files only)
--gen Generate a hix.json config file if it does not exist	
 -l <inputFile> prints valid builds
 -e don't delete generated tmp files
 -ks <key:value> adds or changes a key/value pair to the hix.json config file
@@ -87,62 +78,35 @@ available flags:
 -kg <key> gets the value of the key from the hix.json config file
 -h prints help
 -u prints usage info	
--v prints version info";
+-cfg Generate a hix.json config file if it does not exist
+-hdr <filename> Generates a default hix header for the given filename via the extension.
+                If the file exists and no hix header is found, it will be inserted.
+                Otherwise the file will be created with the header.";
 			var params = {programVersion: version};
 			var template = new haxe.Template(data);
             return template.execute(params);
 
     }
 
-    public static function DefaultCSHeader(params:Dynamic):String{
-        var data:String ="//This program can be compiled with the Hix.exe utility
-::if (Author != null):://Author: ::Author::::else:://::end::
-::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::
-//::hix -out:${filenameNoExt}.exe -optimize ${filename}
-//";
-        //Add these keys to the params passed in
-        Reflect.setField(params, 'SetupKey', '::setupEnv =');
-		var template = new haxe.Template(data);
-        return template.execute(params);
+    public static function DefaultConfig():String{
+       return "{
+    \"Author\":null,
+    \"SetupEnv\" : null,
+    \"hxHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\\n//\",
+    \"csHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\\n//\",
+    \"cHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::incDirs=\\n//::libDirs=\\n//::libs=\\n//::defines=_CRT_SECURE_NO_WARNINGS \\n//::hix\\n//\"
+}";
     }
 
-    public static function DefaultHxCHeader(params:Dynamic):String{
-        var data:String ="//This program can be compiled with the Hix.exe utility
-::if (Author != null):://Author: ::Author::::else:://::end::
-::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::
-//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full
-//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin
-//";
-        //Add these keys to the params passed in
-        Reflect.setField(params, 'SetupKey', '::setupEnv =');
-		var template = new haxe.Template(data);
-        return template.execute(params);
-    }
-
-    public static function DefaultCHeader(params:Dynamic):String{
-        var data:String ="//This program can be compiled with the Hix.exe utility
-::if (Author != null):://Author: ::Author::::else:://::end::
-::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::
-//::incDirs=
-//::libDirs=
-//::libs=
-//::defines=_CRT_SECURE_NO_WARNINGS 
-//::hix
-//";
-        //Add these keys to the params passed in
-        Reflect.setField(params, 'SetupKey', '::setupEnv =');
-		var template = new haxe.Template(data);
-        return template.execute(params);
-    }
-
-    public static function Header(ext:String, params:Dynamic):String{
-        if(ExtToExe.exists(ext)){
-            var func = ExtToExe[ext];
-            if(func == null)
-                return null;
-            return func(params);
+    public static function Header(templateText:String, macros:Dynamic):String{
+        if(templateText == null) return null;
+        var template = new haxe.Template(templateText);
+        try{
+            return template.execute(macros);
         }
-        else 
+        catch(ex:Dynamic){
+            Log.error(new String(ex));
             return null;
+        }
     }
 }
