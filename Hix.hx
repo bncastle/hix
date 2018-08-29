@@ -33,10 +33,14 @@ enum FileDelType {AllNonTemp; AllTemp; All;}
 //.c. .cpp, .cs, .hx, .js, .ts 
 //comments
 //	single line: //
-//	multiline: /* * /
+//	multiline: /* */
+
+//.lua
+// single line: --
+// multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.46";
+	static inline var VERSION = "0.47";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -53,13 +57,19 @@ class Hix {
 	static var DEFAULT_CFLAGS = '/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:${OBJ_DIR}\\';
 	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link /LTCG ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
 
-	static var ExtToExe:Map<String,String>= [
+	static var ExtMap:Map<String,String>= [
 		"hx" => "haxe.exe",
 		"cs" => "csc.exe",
 		"c" => "cl.exe",
 		"cpp" => "cl.exe",
 		"js" => "node.exe",
 		"ts" => "tsc.exe",
+		"lua" => "lua.exe"
+	];
+
+	static var CommentType:Map<String, Comment> =[
+		"default" => new Comment(~/^\s*\/\//, ~/\/\*/, ~/\*\//),
+		"lua" => new Comment(~/^--/, ~/--\[\[/, ~/]]--/)
 	];
 
 	//returns the name of the system this is running on
@@ -80,6 +90,9 @@ class Hix {
 
 	//Read-only property for the current state of the parser
 	public var state(null,default):State = SearchingForHeader;
+
+	//The comment analyzer for the file we're looking at
+	var commentAnalyzer:Comment;
 
 	//true if we are currently in a comment, false otherwise
 	var inComment:Bool = false;
@@ -111,7 +124,7 @@ class Hix {
 		if(Sys.args().length == 0 )
 		{
 			//look for any .hx file in the current directory
-			inputFile = Util.FindFirstFileInValidExts(cwd, ExtToExe);
+			inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
 			if(inputFile == null)
 			{
 				Log.log(Generate.Usage(VERSION));
@@ -131,7 +144,7 @@ class Hix {
 		if(Util.ProcessFlag("h", flags))
 		{
 			var validExt:Array<String> = new Array<String>();
-			for(e in ExtToExe.keys()) validExt.push(e);
+			for(e in ExtMap.keys()) validExt.push(e);
 			Log.log(Generate.Help(HEADER_START, validExt));
 			return 0;
 		}
@@ -253,7 +266,7 @@ class Hix {
 			if(inputFile == null)
 			{
 				//look for any .hx file in the current directory
-				inputFile = Util.FindFirstFileInValidExts(cwd, ExtToExe);
+				inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
 				if(inputFile == null)
 				{
 					Log.log(Generate.Usage(VERSION));
@@ -282,8 +295,14 @@ class Hix {
 			return 1;
 		}
 
-		var h = new Hix(deleteEmbeddedFiles);
-		h.ParseFile(inputFile);
+		//Start with the default comment analyzer
+		var commentAnalyzer =CommentType["default"];
+		var ext = Util.GetExt(inputFile);
+		if(CommentType.exists(ext))
+			commentAnalyzer = CommentType.get(ext);
+
+		//Create our 'hix' instance
+		var h = new Hix(commentAnalyzer, deleteEmbeddedFiles);
 
 		if(Util.ProcessFlag("clean", flags)){
 			if(h.fileType == "c" || h.fileType == "cpp"){
@@ -319,6 +338,9 @@ class Hix {
 			return 1;
 		}
 
+		//Now parse the file and try to do something
+		h.ParseFile(inputFile);
+
 		if(h.state == FinishSuccess){
 			trace("File successfully parsed. Executing...");
 			return h.Execute(inputBuildName);
@@ -334,8 +356,9 @@ class Hix {
 		}
 	}
 
-	public function new(deleteGeneratedFiles:Bool = true) 
+	public function new(analyzer:Comment, deleteGeneratedFiles:Bool = true) 
 	{
+		commentAnalyzer = analyzer;
 		buildMap = new Map<String,Array<String>>();
 		keyValues = new Map<String,String>();
 		embeddedFiles = new Map<String,EmbeddedFile>();
@@ -505,7 +528,6 @@ class Hix {
 	//
 	public function ParseFile(fileName:String)
 	{
-		var endMultilineComment =  ~/^\s*\*\//;
 		var whitespace= ~/^\s+$/g;
 		var currentBuildArgs:Array<String> = null;
 		var prevBuildName:String = DEFAULT_BUILD_NAME;
@@ -516,8 +538,8 @@ class Hix {
 		else fileType == fileType.toLowerCase();
 
 		//Set the default name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
-		if(ExtToExe.exists(fileType))
-			keyValues[KEY_EXE] = ExtToExe[fileType]
+		if(ExtMap.exists(fileType))
+			keyValues[KEY_EXE] = ExtMap[fileType]
 		else
 			keyValues[KEY_EXE] = "";
 
@@ -692,7 +714,7 @@ class Hix {
 						{
 							//Make sure this is NOT the end of a multiline comment
 							//The multiline comment ending tag '*/' must be placed on a separate line
-							if(!endMultilineComment.match(text)){
+							if(!commentAnalyzer.IsMultiEnd(text)){
 								if(currentFile.contents.length > 0)
 									currentFile.contents.add("\n");
 								currentFile.contents.add(Std.string(text));
@@ -888,24 +910,18 @@ class Hix {
 	//
 	function CheckComment() 
 	{
-		//Check for a line comment with nothing but optional spaces before it starts
-		var singleComment = ~/^\s*\/\//;
-		//2 different ways of instantiating an EReg
-		var begin = new EReg("/\\*","i");
-		var end = ~/\*\//;
-
 		//if we weren't in a comment, see if we are now
 		//Otherwise see if we are out of the comment
 		if(!multilineComment)
 		{
-			multilineComment = begin.match(text) && !end.match(text);
+			multilineComment = commentAnalyzer.IsMultiStart(text) && !commentAnalyzer.IsMultiEnd(text);
 
 			//See if we have a line comment
-			inComment = begin.match(text) || singleComment.match(text);
+			inComment = multilineComment || commentAnalyzer.IsSingle(text);
 		}
 		else
 		{
-			multilineComment = !end.match(text);
+			multilineComment = !commentAnalyzer.IsMultiEnd(text);
 
 			//even if the multiline comment ends, this line is still a comment
 			inComment = true;
