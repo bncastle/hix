@@ -40,7 +40,7 @@ enum FileDelType {AllNonTemp; AllTemp; All;}
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.47";
+	static inline var VERSION = "0.48";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";

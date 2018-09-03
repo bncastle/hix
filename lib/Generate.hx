@@ -92,8 +92,8 @@ available flags:
        return "{
     \"Author\":null,
     \"SetupEnv\" : null,
-    \"hxHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\\n//\",
-    \"csHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\\n//\",
+    \"hxHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\\n//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\\n//\",
+    \"csHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix -optimize -out:${filenameNoExt}.exe ${filename}\\n//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\\n//\",
     \"cHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::incDirs=\\n//::libDirs=\\n//::libs=\\n//::defines=_CRT_SECURE_NO_WARNINGS \\n//::hix\\n//\"
 }";
     }
