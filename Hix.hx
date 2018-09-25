@@ -40,7 +40,7 @@ enum FileDelType {AllNonTemp; AllTemp; All;}
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.48";
+	static inline var VERSION = "0.49";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -189,6 +189,7 @@ class Hix {
 				var key = StringTools.trim(args[0]);
 				Config.Set({key: key, val: null});
 				Config.Save();
+				Log.log('Key: ${key} deleted from ${Config.CFG_FILE}');
 				return 0;
 			}
 		}
@@ -226,9 +227,9 @@ class Hix {
 			var filePath = Util.GetFirstFilenameFromArgs(args, false);
 			if(filePath != null){
 				var ext = Util.GetExt(filePath);
-				var template = Config.Get(ext+"Header");
+				var template = Config.Get(ext + "Header");
 				if(template == null){
-					Log.error('Unable to find ${ext+"Header"} key in ${Config.CFG_FILE}');
+					Log.error('Unable to find ${ext + "Header"} key in ${Config.CFG_FILE}');
 					return 1;
 				}
 				var content = Generate.Header(template, {Author : Config.Get(KEY_AUTHOR), SetupEnv : Config.Get(KEY_SETUP_ENV)});

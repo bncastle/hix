@@ -46,7 +46,7 @@ class Config{
 		}
 	}
 
-	public static function Get(key:String):String{
+	public static function Get(key:String):Dynamic{
 		if(key == null || key.length == 0)
 			return null;
 		else{

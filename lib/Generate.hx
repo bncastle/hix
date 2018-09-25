@@ -92,15 +92,39 @@ available flags:
        return "{
     \"Author\":null,
     \"SetupEnv\" : null,
-    \"hxHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\\n//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\\n//\",
-    \"csHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::hix -optimize -out:${filenameNoExt}.exe ${filename}\\n//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\\n//\",
-    \"cHeader\":\"//This program can be compiled with the Hix.exe utility\\n::if (Author != null):://Author: ::Author::::else:://::end::\\n::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\\n//::incDirs=\\n//::libDirs=\\n//::libs=\\n//::defines=_CRT_SECURE_NO_WARNINGS \\n//::hix\\n//\"
-}";
+    \"hxHeader\":[
+        \"//This program can be compiled with the Hix.exe utility\",
+        \"::if (Author != null):://Author: ::Author::::else:://::end::\",
+        \"::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\",
+        \"//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\",
+        \"//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\",
+        \"//\"
+    ],
+    \"csHeader\":[
+        \"//This program can be compiled with the Hix.exe utility\",
+        \"::if (Author != null):://Author: ::Author::::else:://::end::\",
+        \"::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\",
+        \"//::hix -optimize -out:${filenameNoExt}.exe ${filename}\",
+        \"//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\",
+        \"//\"
+        ],
+    \"cHeader\":[
+        \"//This program can be compiled with the Hix.exe utility\",
+        \"::if (Author != null):://Author: ::Author::::else:://::end::\",
+        \"::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\",
+        \"//::incDirs=\",
+        \"//::libDirs=\",
+        \"//::libs=\",
+        \"//::defines=_CRT_SECURE_NO_WARNINGS \",
+        \"//::hix\",
+        \"//\"
+        ]
+    }";
     }
 
-    public static function Header(templateText:String, macros:Dynamic):String{
-        if(templateText == null) return null;
-        var template = new haxe.Template(templateText);
+    public static function Header(textArray:Array<String>, macros:Dynamic):String{
+        if(textArray == null) return null;
+        var template = new haxe.Template(textArray.join("\n"));
         try{
             return template.execute(macros);
         }
