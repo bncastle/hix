@@ -1,5 +1,6 @@
 -main Hix 
 -cp src
 -cpp bin
+-D static_link
 --no-traces
 -dce full

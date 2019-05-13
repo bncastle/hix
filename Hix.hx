@@ -14,7 +14,7 @@ import lib.*;
 //Author: Pixelbyte studios
 //Date: April 2018
 //
-//::hix       -main ${filenameNoExt} -cp src -cpp bin --no-traces -dce full
+//::hix       -main ${filenameNoExt} -cp src -cpp bin -D static_link --no-traces -dce full
 //::hix:debug -main ${filenameNoExt} -cp src -cpp bin
 //
 enum State
