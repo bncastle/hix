@@ -1,3 +1,4 @@
+#https://github.com/HaxeFoundation/hxcpp/blob/master/docs/build_xml/Defines.md
 -main Hix 
 -cp src
 -cpp bin
