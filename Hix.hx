@@ -141,6 +141,7 @@ class Hix {
 		var flags = Util.ParseArgOptions(args);
 
 		//Check for any command line switches here
+		//See Generate.Usage() for documentation on these flags
 		if(Util.ProcessFlag("h", flags))
 		{
 			var validExt:Array<String> = new Array<String>();
@@ -210,7 +211,7 @@ class Hix {
 				return 0;
 			}
 		}
-		if(Util.ProcessFlag("cfg", flags)){
+		if(Util.ProcessFlag("gencfg", flags)){
 			if(!Config.Exists()){
 				File.saveContent(Config.cfgPath, Generate.DefaultConfig());
 				Log.log('[Hix] Creating new Config file at: ${Config.cfgPath}');

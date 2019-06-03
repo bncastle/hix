@@ -78,7 +78,7 @@ available flags:
 -kg <key> gets the value of the key from the hix.json config file
 -h prints help
 -u prints usage info	
--cfg Generate a hix.json config file if it does not exist
+-gencfg Generate a hix.json config file if it does not exist
 -hdr <filename> Generates a default hix header for the given filename via the extension.
                 If the file exists and no hix header is found, it will be inserted.
                 Otherwise the file will be created with the header.";
