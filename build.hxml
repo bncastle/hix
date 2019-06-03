@@ -1,6 +1,8 @@
 -main Hix 
 -cp src
 -cpp bin
--D static_link
+-D exe_link
+-D analyzer
+# --verbose
 --no-traces
 -dce full

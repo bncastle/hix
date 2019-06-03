@@ -12,10 +12,11 @@ import lib.*;
 // build.hxml file or having to specify command line args every time you want to do a build.
 //
 //Author: Pixelbyte studios
-//Date: April 2018
+//Date: June 2019
 //
-//::hix       -main ${filenameNoExt} -cp src -cpp bin -D static_link --no-traces -dce full
+//::hix       -main ${filenameNoExt} -cp src -cpp bin -D gen_cfg -D analyzer --no-traces -dce full
 //::hix:debug -main ${filenameNoExt} -cp src -cpp bin
+//::hix:run   -main Hix -cp src --interp
 //
 enum State
 {
@@ -40,7 +41,7 @@ enum FileDelType {AllNonTemp; AllTemp; All;}
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.49";
+	static inline var VERSION = "0.50";
 	//The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -124,14 +125,16 @@ class Hix {
 		if(Sys.args().length == 0 )
 		{
 			//look for any .hx file in the current directory
-			inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
-			if(inputFile == null)
-			{
-				Log.log(Generate.Usage(VERSION));
-				return 0;
-			}
-			else
-				Log.log('Trying file: $inputFile');
+			// inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
+			// if(inputFile == null)
+			// {
+			// 	Log.log(Generate.Usage(VERSION));
+			// 	return 0;
+			// }
+			// else
+			// 	Log.log('Trying file: $inputFile');
+			Log.log(Generate.Usage(VERSION));
+			return 1;
 		}
 
 		//Get any command line args
@@ -155,7 +158,7 @@ class Hix {
 			return 0;
 		}
 		else if(Util.ProcessFlag("v", flags)){
-			Log.log(VersionString());
+			Log.log(Generate.VersionString(VERSION));
 			return 0;
 		}
 		else if(Util.ProcessFlag("ks", flags)){
@@ -211,7 +214,7 @@ class Hix {
 				return 0;
 			}
 		}
-		if(Util.ProcessFlag("gencfg", flags)){
+		if(Util.ProcessFlag("gen_cfg", flags)){
 			if(!Config.Exists()){
 				File.saveContent(Config.cfgPath, Generate.DefaultConfig());
 				Log.log('[Hix] Creating new Config file at: ${Config.cfgPath}');
@@ -1021,10 +1024,5 @@ class Hix {
 		for(key in buildMap.keys()){
 			Sys.println(key);
 		}
-	}
-
-	static function VersionString() : String
-	{
-		return '== Hix Version $VERSION by Pixelbyte Studios ==';
 	}
 }

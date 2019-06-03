@@ -1,9 +1,12 @@
 package lib;
 
 class Generate {
+	public static function VersionString(version:String):String {
+		return '== Hix Version $version by Pixelbyte Studios ==';
+	}
 
-    public static function Help(headerStart:String, validExtensions:Array<String>):String{
-var inst: String = "
+	public static function Help(headerStart:String, validExtensions:Array<String>):String {
+		var inst:String = "
  Hix is a utility that lets you to store compile settings inside of source files.
  Currently supported languages are: ::ValidExtensions::	
  Put the start header near the top of your source file and add desired compile args:
@@ -59,15 +62,16 @@ var inst: String = "
  */
  =============================================================================
 			";
-			var params = {HixHeader: headerStart, ValidExtensions: validExtensions.join(" ")};
-			var template = new haxe.Template(inst);
-            return template.execute(params);
-    }
 
-    public static function Usage(version:String):String{
-		var data: String = "
+		var params = {HixHeader: headerStart, ValidExtensions: validExtensions.join(" ")};
+		var template = new haxe.Template(inst);
+		return template.execute(params);
+	}
+
+	public static function Usage(version:String):String {
+		var data:String = "
 == Hix Version ::programVersion:: by Pixelbyte Studios ==
-Hix.exe <flags> <inputFile> [buildName]			
+Hix.exe [flags] <inputFile> [buildName]			
 available flags:
 -v prints version info
 -clean Cleans any intermediate files (currently for .c and .cpp src files only)
@@ -78,18 +82,17 @@ available flags:
 -kg <key> gets the value of the key from the hix.json config file
 -h prints help
 -u prints usage info	
--gencfg Generate a hix.json config file if it does not exist
+-gen_cfg Generate a hix.json config file if it does not exist
 -hdr <filename> Generates a default hix header for the given filename via the extension.
                 If the file exists and no hix header is found, it will be inserted.
                 Otherwise the file will be created with the header.";
-			var params = {programVersion: version};
-			var template = new haxe.Template(data);
-            return template.execute(params);
+		var params = {programVersion: version};
+		var template = new haxe.Template(data);
+		return template.execute(params);
+	}
 
-    }
-
-    public static function DefaultConfig():String{
-       return "{
+	public static function DefaultConfig():String {
+		return "{
     \"Author\":null,
     \"SetupEnv\" : null,
     \"hxHeader\":[
@@ -120,17 +123,17 @@ available flags:
         \"//\"
         ]
     }";
-    }
+	}
 
-    public static function Header(textArray:Array<String>, macros:Dynamic):String{
-        if(textArray == null) return null;
-        var template = new haxe.Template(textArray.join("\n"));
-        try{
-            return template.execute(macros);
-        }
-        catch(ex:Dynamic){
-            Log.error(new String(ex));
-            return null;
-        }
-    }
+	public static function Header(textArray:Array<String>, macros:Dynamic):String {
+		if (textArray == null)
+			return null;
+		var template = new haxe.Template(textArray.join("\n"));
+		try {
+			return template.execute(macros);
+		} catch (ex:Dynamic) {
+			Log.error(new String(ex));
+			return null;
+		}
+	}
 }
