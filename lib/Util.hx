@@ -112,7 +112,10 @@ class Util{
 
 	public static function FindFirstFileInValidExts(currentDirectory:String, validExts:Map<String, String>) : String
 	{
-        if(validExts == null) return null;
+        if(validExts == null) {
+			Log.error("Received a null extenstion map! Aborting...");
+			return null;
+		}
 		for(e in validExts.keys())
 		{
 			var filename = FindFirstFileInDirWithExt(currentDirectory, e);

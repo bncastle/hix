@@ -1,7 +1,5 @@
 package lib;
 
-import cpp.vm.Debugger.Parameter;
-import haxe.xml.Access;
 import haxe.ds.StringMap;
 import haxe.Json;
 import sys.io.File;
@@ -69,9 +67,11 @@ class Config {
 			return null;
 		else {
 			if (Reflect.hasField(json, key)) {
-				return return Reflect.field(json, key);
-			} else
+				return Reflect.field(json, key);
+			} else{
+				Log.error('Field: $key was not found in config file [$Filename]!');
 				return null;
+			}
 		}
 	}
 
@@ -80,10 +80,22 @@ class Config {
 			return null;
 		else {
 			if (Reflect.hasField(json, key)) {
-				return return Reflect.field(json, key);
-			} else
+				var obj = Reflect.field(json,key);
+				return Decode(obj);
+			} else{
+				Log.error('Field: $key was not found in config file [$Filename]!');
 				return null;
+			}
 		}
+	}
+
+	static function Decode<T>(obj:Dynamic) : StringMap<T>{
+		var inst = new StringMap<T>();
+		for(field in Reflect.fields(obj))
+		{
+			inst.set(field, Reflect.field(obj, field));
+		}
+		return inst;
 	}
 
 	public function Save() {

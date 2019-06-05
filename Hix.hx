@@ -1,3 +1,4 @@
+import haxe.ds.StringMap;
 import haxe.Json;
 import haxe.Template;
 import sys.io.File;
@@ -52,7 +53,16 @@ class Hix {
 	static inline var KEY_SETUP_ENV = "SetupEnv";
 	static var DEFAULT_CFLAGS = '/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:${OBJ_DIR}\\';
 	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link /LTCG ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
-	static var CommentType:Map<String, Comment> = [
+	static var ExtMap:Map<String, String> = [
+		"hx" => "haxe.exe",
+		"cs" => "csc.exe",
+		"c" => "cl.exe",
+		"cpp" => "cl.exe",
+		"js" => "node.exe",
+		"ts" => "tsc.exe",
+		"lua" => "lua.exe"
+	];
+	static var CommentType:StringMap<Comment> = [
 		"default" => new Comment(~/^\s*\/\//, ~/\/\*/, ~/\*\//),
 		"lua" => new Comment(~/^--/, ~/--\[\[/, ~/]]--/)
 	];
@@ -103,17 +113,8 @@ class Hix {
 
 		// Get the current working directory
 		var cwd = Sys.getCwd();
-
+		
 		if (Sys.args().length == 0) {
-			// look for any .hx file in the current directory
-			// inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
-			// if(inputFile == null)
-			// {
-			// 	Log.log(Generate.Usage(VERSION));
-			// 	return 0;
-			// }
-			// else
-			// 	Log.log('Trying file: $inputFile');
 			Log.log(Generate.Usage(VERSION));
 			return 1;
 		}
@@ -128,15 +129,13 @@ class Hix {
 		if (!config.Exists) {
 			File.saveContent(config.FullPath, Generate.DefaultConfig());
 			Log.log('[Hix] Creating new Config file at: ${config.FullPath}');
-		} else {
-			Log.log('[Hix] Config file already exists at: ${config.FullPath}');
 		}
 
 		// Check for any command line switches here
 		// See Generate.Usage() for documentation on these flags
 		if (Util.ProcessFlag("h", flags)) {
 			var validExt:Array<String> = new Array<String>();
-			for (e in config.GetMap("extMap"))
+			for (e in ExtMap)
 				validExt.push(e);
 			Log.log(Generate.Help(HEADER_START, validExt));
 			return 0;
@@ -214,7 +213,6 @@ class Hix {
 					// Search the file for a hix header
 					if (existingText.indexOf(HEADER_START) > -1) {
 						Log.warn('[Hix] found an existing header in "$filePath" Exiting');
-						return 0;
 					} else {
 						try {
 							File.saveContent(filePath, content + existingText);
@@ -236,7 +234,7 @@ class Hix {
 
 			if (inputFile == null) {
 				// look for any .hx file in the current directory
-				inputFile = Util.FindFirstFileInValidExts(cwd, config.GetMap("extMap"));
+				inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
 				if (inputFile == null) {
 					Log.log(Generate.Usage(VERSION));
 					return 1;
@@ -263,7 +261,7 @@ class Hix {
 		}
 
 		// Start with the default comment analyzer
-		var commentAnalyzer = CommentType["default"];
+		var commentAnalyzer = CommentType.get("default");
 		var ext = Util.GetExt(inputFile);
 		if (CommentType.exists(ext))
 			commentAnalyzer = CommentType.get(ext);
@@ -650,15 +648,15 @@ class Hix {
 			fileType == "";
 		else
 			fileType == fileType.toLowerCase();
+		Log.log('file ext: $fileType');
 
 		// Set the default name of the executable to run (this can be changed by placing '//::exe=newExe.exe' before the start header)
 		if (ExtMap.exists(fileType))
-			keyValues[KEY_EXE] = ExtMap[fileType]
+			keyValues[KEY_EXE] = ExtMap[fileType];
 		else
 			keyValues[KEY_EXE] = "";
 
-		trace('file ext: $fileType');
-		trace('picked exe: ${keyValues[KEY_EXE]}');
+		Log.log('picked exe: ${keyValues[KEY_EXE]}');
 
 		// What line are we on
 		line = -1;
@@ -684,6 +682,11 @@ class Hix {
 			}
 		} catch (ex:haxe.io.Eof) {}
 		reader.close();
+
+		if(currentFile != null){
+			embeddedFiles.set(currentFile.name, currentFile);
+			currentFile = null;
+		}
 	}
 
 	function ProcessSpecialCommands(buildArgList:Array<String>) {
