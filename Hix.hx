@@ -1,5 +1,4 @@
 import haxe.ds.StringMap;
-import haxe.Json;
 import haxe.Template;
 import sys.io.File;
 import haxe.io.Path;
@@ -49,8 +48,8 @@ class Hix {
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static inline var OBJ_DIR = "obj";
 	// Special hix.json config keys
-	static inline var KEY_AUTHOR = "Author";
-	static inline var KEY_SETUP_ENV = "SetupEnv";
+	static inline var KEY_AUTHOR = "author";
+	static inline var KEY_SETUP_ENV = "setupEnv";
 	static var DEFAULT_CFLAGS = '/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:${OBJ_DIR}\\';
 	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link /LTCG ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
 	static var ExtMap:Map<String, String> = [
@@ -83,13 +82,24 @@ class Hix {
 	public var Succeeded(get, null):Bool = false;
 	public var FoundHeader(null, default):Bool = false;
 	public var StateName(get, null):String;
-
+	
 	function get_StateName():String {
-		return methodName(this, stateFunction);
+		var result:String = "null";
+
+		if (stateFunction != null) {
+			for (name in Reflect.fields(this)) {
+				var field:Dynamic = Reflect.field(this, name);
+				if (field.isFunction() && Reflect.compareMethods(stateFunction, field)) {
+					result = name;
+					break;
+				}
+			}
+		}
+		return result;
 	}
 
 	function get_Succeeded():Bool {
-		return (stateFunction == ParseEmbeddedFile || stateFunction == SearchForOtherCommands || stateFunction == FinishSuccess);
+		return (stateFunction == StateParseEmbeddedFile || stateFunction == StateFindOtherCmds || stateFunction == StateSuccess);
 	}
 
 	// The comment analyzer for the file we're looking at
@@ -113,7 +123,7 @@ class Hix {
 
 		// Get the current working directory
 		var cwd = Sys.getCwd();
-		
+
 		if (Sys.args().length == 0) {
 			Log.log(Generate.Usage(VERSION));
 			return 1;
@@ -128,6 +138,7 @@ class Hix {
 
 		if (!config.Exists) {
 			File.saveContent(config.FullPath, Generate.DefaultConfig());
+			config = Config.Create();
 			Log.log('[Hix] Creating new Config file at: ${config.FullPath}');
 		}
 
@@ -192,33 +203,61 @@ class Hix {
 				return 0;
 			}
 		}
-		if (Util.ProcessFlag("hdr", flags)) {
+		if (Util.ProcessFlag("gen", flags)) {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
 			var filePath = Util.GetFirstFilenameFromArgs(args, false);
 			if (filePath != null) {
 				var ext = Util.GetExt(filePath);
-				var template = config.Get(ext + "Header");
-				if (template == null) {
-					Log.error('Unable to find ${ext + "Header"} key in ${config.Filename}');
+				var header_template = config.Get(ext + "Header");
+				var body_template = config.Get(ext + "Body");
+				if (header_template == null) {
+					Log.warn('Unable to find ${ext + "Header"} key in ${config.Filename}');
+				}
+				if (body_template == null) {
+					Log.warn('Unable to find ${ext + "Body"} key in ${config.Filename}');
+				}
+
+				if(header_template == null && body_template == null) {
+					Log.error('Unable to generate $filePath. Could not find ${ext + "Header"} or ${ext + "Body"} entries in ${config.Filename}');
 					return 1;
 				}
-				var content = Generate.Header(template, {Author: config.Get(KEY_AUTHOR), SetupEnv: config.Get(KEY_SETUP_ENV)});
+
+				var header_content = Generate.Template(header_template, {author: config.Get(KEY_AUTHOR), setupEnv: config.Get(KEY_SETUP_ENV)});
+				var body_content = Generate.Template(body_template, {ClassName: new Path(filePath).file});
 				if (!FileSystem.exists(filePath)) {
-					if (content != null)
-						File.saveContent(filePath, content);
+					var sb:StringBuf = new StringBuf();
+					if (header_content != null)
+						sb.add(header_content);
+					if (body_content != null){
+						sb.addChar('\n'.code);
+						sb.add(body_content);
+					}
+					if(sb.length > 0)
+						File.saveContent(filePath, sb.toString());
+					else 
+						Log.error('Unable to generate $filePath. Content was empty!');
 				} else { // The file exists so we must do more
 					var existingText = File.getContent(filePath);
 					// Search the file for a hix header
 					if (existingText.indexOf(HEADER_START) > -1) {
-						Log.warn('[Hix] found an existing header in "$filePath" Exiting');
+						Log.warn('[Hix] found an existing header in "$filePath" aborted header insert');
 					} else {
 						try {
-							File.saveContent(filePath, content + existingText);
+							File.saveContent(filePath, header_content + existingText);
 						} catch (ex:Dynamic) {
 							Log.error(new String(ex));
 						}
+					}
+				}
+
+				//If we find a '.' then try to open the new file in the editor if it is configured
+				var dot = Util.ParseFirstNonFilename(args);
+				if(dot == "."){
+					var editor = config.Get("editor");
+					if (editor != null){
+						return Sys.command('$editor $filePath');
 					}
 				}
 			}
@@ -324,7 +363,7 @@ class Hix {
 	}
 
 	//
-	// This executes the command that was constructed by Calling ParseFile
+	// Executes the command that was constructed by Calling ParseFile
 	//
 	public function Execute(buildName:String, cfg:Config):Int {
 		var usedEmbeddedTmpFiles:Array<String> = new Array<String>();
@@ -468,7 +507,9 @@ class Hix {
 		}
 	}
 
-	function SearchForHeader():Bool {
+	var stateFunction:Void->Bool;
+
+	function StateFindHeader():Bool {
 		var whitespace = ~/^\s+$/g;
 		currentBuildArgs = IsStartHeader();
 		if (currentBuildArgs != null) {
@@ -478,7 +519,7 @@ class Hix {
 			// once the 1st non-comment line is reached.
 			trace('[Hix] Getting build args for: $currentBuildName');
 
-			stateFunction = SearchForArgs;
+			stateFunction = StateFindArgs;
 		} else {
 			// Look for any Pre-Header key/values
 			var t = ParseHeaderKeyValue();
@@ -532,17 +573,17 @@ class Hix {
 		return true;
 	}
 
-	function SearchForArgs():Bool {
+	function StateFindArgs():Bool {
 		if (!inComment && currentBuildArgs.length == 0) // Couldn't find anything
 		{
 			Log.error("Unable to find any compiler args in the header!");
-			stateFunction = FinishFail;
+			stateFunction = StateFail;
 		} else if (!inComment && currentBuildArgs.length > 0) // Found something
 		{
 			trace("[Hix] Success. Found compiler args");
 			CreateBuilder(currentBuildName, currentBuildArgs);
-			// state = State.FinishSuccess;
-			stateFunction = SearchForOtherCommands;
+			// state = State.StateSuccess;
+			stateFunction = StateFindOtherCmds;
 			trace("[Hix] Searching for other commands");
 			// break;
 		} else // We're in a comment
@@ -566,14 +607,14 @@ class Hix {
 					currentBuildArgs = currentBuildArgs.concat(grabbedArgs);
 				// else{
 				// 	Log.error('Unable to grab args. Offending text:\n${text}');
-				// 	state = State.FinishFail;
+				// 	state = State.StateFail;
 				// }
 			}
 		}
 		return true;
 	}
 
-	function SearchForOtherCommands():Bool {
+	function StateFindOtherCmds():Bool {
 		if (inComment) {
 			// Look for any other keyvalue commands
 			var t = ParseHeaderKeyValue();
@@ -582,7 +623,7 @@ class Hix {
 				if (t.key == "tmpfile" || t.key == "genfile") {
 					if (t.val == "" || t.val == null) {
 						Log.error('${line} Must specify a name for the embedded file!');
-						stateFunction = FinishFail;
+						stateFunction = StateFail;
 					} else {
 						Log.log('[Hix] embedded file found: ${t.val}');
 						var filename:String = "";
@@ -590,7 +631,7 @@ class Hix {
 						// 	filename = t.val.toLowerCase();
 						// else
 						filename = t.val;
-						stateFunction = ParseEmbeddedFile;
+						stateFunction = StateParseEmbeddedFile;
 						currentFile = new EmbeddedFile(filename, t.key == "tmpfile");
 					}
 				}
@@ -599,7 +640,7 @@ class Hix {
 		return true;
 	}
 
-	function ParseEmbeddedFile():Bool {
+	function StateParseEmbeddedFile():Bool {
 		if (!inComment) {
 			if (currentFile.contents.length > 0) {
 				if (embeddedFiles.exists(currentFile.name))
@@ -609,7 +650,7 @@ class Hix {
 				currentFile = null;
 			}
 
-			stateFunction = SearchForOtherCommands;
+			stateFunction = StateFindOtherCmds;
 		} else {
 			// Make sure this is NOT the end of a multiline comment
 			// The multiline comment ending tag '*/' must be placed on a separate line
@@ -622,15 +663,14 @@ class Hix {
 		return true;
 	}
 
-	function FinishSuccess():Bool {
+	function StateSuccess():Bool {
 		return false;
 	}
 
-	function FinishFail():Bool {
+	function StateFail():Bool {
 		return false;
 	}
 
-	var stateFunction:Void->Bool;
 	var currentBuildArgs:Array<String> = null;
 	// What file line we are on
 	var line:Int;
@@ -667,7 +707,7 @@ class Hix {
 		currentFile = null;
 
 		// Try to open the file in text mode
-		stateFunction = SearchForHeader;
+		stateFunction = StateFindHeader;
 		var reader = File.read(fileName, false);
 		try {
 			trace("[Hix] Searching for a header..");
@@ -683,7 +723,7 @@ class Hix {
 		} catch (ex:haxe.io.Eof) {}
 		reader.close();
 
-		if(currentFile != null){
+		if (currentFile != null) {
 			embeddedFiles.set(currentFile.name, currentFile);
 			currentFile = null;
 		}
@@ -746,7 +786,7 @@ class Hix {
 
 		if (buildMap.exists(buildName)) {
 			Log.error('Found duplicate build name: $buildName in $filename!');
-			stateFunction = FinishFail;
+			stateFunction = StateFail;
 			return;
 		}
 
@@ -936,21 +976,5 @@ class Hix {
 		for (key in buildMap.keys()) {
 			Sys.println(key);
 		}
-	}
-
-	static function methodName(cls:Hix, obj:Dynamic):String {
-		var result:String = null;
-
-		if (obj.isFunction()) {
-			for (name in Reflect.fields(cls)) {
-				var field:Dynamic = Reflect.field(cls, name);
-				if (field.isFunction() && Reflect.compareMethods(obj, field)) {
-					result = name;
-					break;
-				}
-			}
-		}
-
-		return result;
 	}
 }

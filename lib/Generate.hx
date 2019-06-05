@@ -82,7 +82,7 @@ available flags:
 -kg <key> gets the value of the key from the hix.json config file
 -h prints help
 -u prints usage info	
--hdr <filename> Generates a default hix header for the given filename via the extension. If the file exists and no hix header is found, it will be inserted. Otherwise the file will be created with the header.";
+-gen <filename> Generates a default hix header for the given filename via the extension. If the file exists and no hix header is found, it will be inserted. Otherwise the file will be created with the header.";
 		var params = {programVersion: version};
 		var template = new haxe.Template(data);
 		return template.execute(params);
@@ -90,28 +90,38 @@ available flags:
 
 	public static function DefaultConfig():String {
 		return "{
-    \"Author\":null,
-    \"SetupEnv\" : null,
+    \"author\":null,
+    \"setupEnv\" : null,
+    \"editor\" : \"code\",
     \"hxHeader\":[
         \"//This program can be compiled with the Hix.exe utility\",
-        \"::if (Author != null):://Author: ::Author::::else:://::end::\",
-        \"::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\",
+        \"::if (author != null):://Author: ::author::::else:://::end::\",
+        \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
         \"//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\",
         \"//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\",
         \"//\"
     ],
     \"csHeader\":[
         \"//This program can be compiled with the Hix.exe utility\",
-        \"::if (Author != null):://Author: ::Author::::else:://::end::\",
-        \"::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\",
+        \"::if (author != null):://Author: ::author::::else:://::end::\",
+        \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
         \"//::hix -optimize -out:${filenameNoExt}.exe ${filename}\",
         \"//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\",
         \"//\"
         ],
+    \"csBody\":[
+      \"public class ::ClassName::\",
+      \"{\",
+      \"    static void Main(string[] args)\",
+      \"    {\",
+      \"\",
+      \"    }\",
+      \"}\"  
+    ],
     \"cHeader\":[
         \"//This program can be compiled with the Hix.exe utility\",
-        \"::if (Author != null):://Author: ::Author::::else:://::end::\",
-        \"::if (SetupEnv != null):://::SetupKey:: ::SetupEnv::::else:://::end::\",
+        \"::if (author != null):://Author: ::author::::else:://::end::\",
+        \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
         \"//::incDirs=\",
         \"//::libDirs=\",
         \"//::libs=\",
@@ -122,7 +132,7 @@ available flags:
     }";
 	}
 
-	public static function Header(textArray:Array<String>, macros:Dynamic):String {
+	public static function Template(textArray:Array<String>, macros:Dynamic):String {
 		if (textArray == null)
 			return null;
 		var template = new haxe.Template(textArray.join("\n"));
