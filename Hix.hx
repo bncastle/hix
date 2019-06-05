@@ -1,3 +1,4 @@
+import haxe.Json;
 import haxe.Template;
 import sys.io.File;
 import haxe.io.Path;
@@ -38,7 +39,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.51";
+	static inline var VERSION = "0.52";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -51,15 +52,6 @@ class Hix {
 	static inline var KEY_SETUP_ENV = "SetupEnv";
 	static var DEFAULT_CFLAGS = '/nologo /EHsc /GS /GL /Gy /sdl /O2 /WX /Fo:${OBJ_DIR}\\';
 	static inline var DEFAULT_C_OUTPUT_ARGS = "${cflags} ${filename} ${defines} ${incDirs} /link /LTCG ${libDirs} ${libs} /OUT:${filenameNoExt}.exe";
-	static var ExtMap:Map<String, String> = [
-		"hx" => "haxe.exe",
-		"cs" => "csc.exe",
-		"c" => "cl.exe",
-		"cpp" => "cl.exe",
-		"js" => "node.exe",
-		"ts" => "tsc.exe",
-		"lua" => "lua.exe"
-	];
 	static var CommentType:Map<String, Comment> = [
 		"default" => new Comment(~/^\s*\/\//, ~/\/\*/, ~/\*\//),
 		"lua" => new Comment(~/^--/, ~/--\[\[/, ~/]]--/)
@@ -131,12 +123,20 @@ class Hix {
 
 		// Strip any bool flags from args
 		var flags = Util.ParseArgOptions(args);
+		var config:Config = Config.Create();
+
+		if (!config.Exists) {
+			File.saveContent(config.FullPath, Generate.DefaultConfig());
+			Log.log('[Hix] Creating new Config file at: ${config.FullPath}');
+		} else {
+			Log.log('[Hix] Config file already exists at: ${config.FullPath}');
+		}
 
 		// Check for any command line switches here
 		// See Generate.Usage() for documentation on these flags
 		if (Util.ProcessFlag("h", flags)) {
 			var validExt:Array<String> = new Array<String>();
-			for (e in ExtMap.keys())
+			for (e in config.GetMap("extMap"))
 				validExt.push(e);
 			Log.log(Generate.Help(HEADER_START, validExt));
 			return 0;
@@ -159,8 +159,8 @@ class Hix {
 					Log.error('Expected a key/value in the form key:value');
 					return 1;
 				} else {
-					Config.Set({key: key, val: val});
-					Config.Save();
+					config.Set({key: key, val: val});
+					config.Save();
 					return 0;
 				}
 			}
@@ -172,9 +172,9 @@ class Hix {
 				return 1;
 			} else {
 				var key = StringTools.trim(args[0]);
-				Config.Set({key: key, val: null});
-				Config.Save();
-				Log.log('Key: ${key} deleted from ${Config.CFG_FILE}');
+				config.Set({key: key, val: null});
+				config.Save();
+				Log.log('Key: ${key} deleted from ${config.Filename}');
 				return 0;
 			}
 		} else if (Util.ProcessFlag("kg", flags)) {
@@ -185,7 +185,7 @@ class Hix {
 				return 1;
 			} else {
 				var key = StringTools.trim(args[0]);
-				var val = Config.Get(key);
+				var val = config.Get(key);
 				if (val == null)
 					Log.warn('[Hix] keyname "$key" not found');
 				else
@@ -193,27 +193,19 @@ class Hix {
 				return 0;
 			}
 		}
-		if (Util.ProcessFlag("gen_cfg", flags)) {
-			if (!Config.Exists()) {
-				File.saveContent(Config.cfgPath, Generate.DefaultConfig());
-				Log.log('[Hix] Creating new Config file at: ${Config.cfgPath}');
-			} else {
-				Log.log('[Hix] Config file already exists at: ${Config.cfgPath}');
-			}
-			return 1;
-		} else if (Util.ProcessFlag("hdr", flags)) {
+		if (Util.ProcessFlag("hdr", flags)) {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
 			var filePath = Util.GetFirstFilenameFromArgs(args, false);
 			if (filePath != null) {
 				var ext = Util.GetExt(filePath);
-				var template = Config.Get(ext + "Header");
+				var template = config.Get(ext + "Header");
 				if (template == null) {
-					Log.error('Unable to find ${ext + "Header"} key in ${Config.CFG_FILE}');
+					Log.error('Unable to find ${ext + "Header"} key in ${config.Filename}');
 					return 1;
 				}
-				var content = Generate.Header(template, {Author: Config.Get(KEY_AUTHOR), SetupEnv: Config.Get(KEY_SETUP_ENV)});
+				var content = Generate.Header(template, {Author: config.Get(KEY_AUTHOR), SetupEnv: config.Get(KEY_SETUP_ENV)});
 				if (!FileSystem.exists(filePath)) {
 					if (content != null)
 						File.saveContent(filePath, content);
@@ -244,7 +236,7 @@ class Hix {
 
 			if (inputFile == null) {
 				// look for any .hx file in the current directory
-				inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
+				inputFile = Util.FindFirstFileInValidExts(cwd, config.GetMap("extMap"));
 				if (inputFile == null) {
 					Log.log(Generate.Usage(VERSION));
 					return 1;
@@ -311,7 +303,7 @@ class Hix {
 
 		if (h.Succeeded) {
 			trace("File successfully parsed. Executing...");
-			return h.Execute(inputBuildName);
+			return h.Execute(inputBuildName, config);
 		} else if (!h.FoundHeader) {
 			Log.error("Unable to find a hix header!");
 			return 1;
@@ -336,7 +328,7 @@ class Hix {
 	//
 	// This executes the command that was constructed by Calling ParseFile
 	//
-	public function Execute(buildName:String):Int {
+	public function Execute(buildName:String, cfg:Config):Int {
 		var usedEmbeddedTmpFiles:Array<String> = new Array<String>();
 
 		if (!buildMap.exists(buildName) || buildMap[buildName].length == 0) {
@@ -368,7 +360,7 @@ class Hix {
 			// and if found, assume that the environment needs to be setup by calling the setupEnv command
 			if (Util.WhereIsFile(exe) == null) {
 				if (keyValues.exists("setupEnv")) {
-					trace('[Hix] Unable to find key "${KEY_EXE}" in ${Config.CFG_FILE}');
+					trace('[Hix] Unable to find key "${KEY_EXE}" in ${cfg.Filename}');
 
 					var setupCmd = keyValues["setupEnv"];
 					if (Util.WhereIsFile(setupCmd) == null) {
@@ -691,7 +683,6 @@ class Hix {
 					break;
 			}
 		} catch (ex:haxe.io.Eof) {}
-
 		reader.close();
 	}
 

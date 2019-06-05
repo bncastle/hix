@@ -119,7 +119,8 @@ available flags:
         \"//::defines=_CRT_SECURE_NO_WARNINGS \",
         \"//::hix\",
         \"//\"
-        ]
+        ],
+    \"extMap\":{\"hx\":\"haxe.exe\",\"cs\":\"csc.exe\",\"lua\":\"lua.exe\",\"js\":\"node.exe\",\"cpp\":\"cl.exe\",\"c\":\"cl.exe\",\"ts\":\"tsc.exe\"}
     }";
 	}
 
