@@ -128,6 +128,15 @@ available flags:
         \"//::defines=_CRT_SECURE_NO_WARNINGS \",
         \"//::hix\",
         \"//\"
+        ],
+    \"cBody\" :[
+        \"#include<stdio.h>\",
+        \"\",
+        \"int main(int argc,char* argv[])\",
+        \"{\",
+        \"    \",
+        \"    return 0;\",
+        \"}\"
         ]
     }";
 	}

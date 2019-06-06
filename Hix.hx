@@ -1,3 +1,4 @@
+import haxe.macro.Expr.TypeDefKind;
 import haxe.ds.StringMap;
 import haxe.Template;
 import sys.io.File;
@@ -579,7 +580,7 @@ class Hix {
 			Log.error("Unable to find any compiler args in the header!");
 			stateFunction = StateFail;
 		} else if (!inComment && currentBuildArgs.length > 0) // Found something
-		{
+		{		
 			trace("[Hix] Success. Found compiler args");
 			CreateBuilder(currentBuildName, currentBuildArgs);
 			// state = State.StateSuccess;
@@ -729,9 +730,9 @@ class Hix {
 		}
 	}
 
-	function ProcessSpecialCommands(buildArgList:Array<String>) {
+	function ProcessSpecialCommands(buildArgList:Array<String>, returnEmptyIfNotFound:Bool = false) {
 		for (i in 0...buildArgList.length) {
-			buildArgList[i] = ProcessSpecialCommand(buildArgList[i]);
+			buildArgList[i] = ProcessSpecialCommand(buildArgList[i], null, returnEmptyIfNotFound);
 		}
 	}
 
@@ -781,7 +782,7 @@ class Hix {
 		return text;
 	}
 
-	function CreateBuilder(buildName:String, args:Array<String>) {
+	function CreateBuilder(buildName:String, args:Array<String>, deleteEmptyArgs:Bool = false) {
 		trace('Create builder for $buildName\n');
 
 		if (buildMap.exists(buildName)) {
@@ -791,7 +792,7 @@ class Hix {
 		}
 
 		// Now process any special commands
-		ProcessSpecialCommands(args);
+		ProcessSpecialCommands(args, deleteEmptyArgs);
 
 		// Add this map to our list of build configs
 		buildMap[buildName] = args;
@@ -805,7 +806,7 @@ class Hix {
 		if (!inComment)
 			return null;
 
-		trace('$text');
+		Log.log('$text');
 		var header = new EReg(HEADER_START + "(:\\w+)?\\s*([^\\n]*)$", "i");
 
 		// See if there is any stuff after the header declaration
@@ -822,7 +823,7 @@ class Hix {
 				// Add this arg to our args arry and trim any whitespace
 				return GrabArgs(StringTools.rtrim(header.matched(2)));
 			} else {
-				trace('[Hix] Unable to find args for ${currentBuildName}');
+				Log.warn('Unable to find args for ${currentBuildName}');
 				if (fileType == "c" || fileType == "cpp") {
 					trace('[Hix] Settings default args for .c|.cpp file for ${currentBuildName}:\n${DEFAULT_C_OUTPUT_ARGS}');
 					return GrabArgs(DEFAULT_C_OUTPUT_ARGS);
@@ -852,6 +853,7 @@ class Hix {
 
 		var parsedArgs = ParseSepString(txt, " ");
 		for (a in parsedArgs) {
+			// Log.log('Adding: $a');
 			args.push(a);
 		}
 
@@ -869,7 +871,7 @@ class Hix {
 		if (!inComment)
 			return null;
 		var cmd = new EReg(COMMAND_PREFIX + "\\s*([^\\n]*)$", "i");
-		var keyVal = new EReg("\\s*([A-Za-z_][A-Za-z0-9_]+)\\s*=\\s*([^\\n]+)$", "i");
+		var keyVal = new EReg("\\s*([A-Za-z_][A-Za-z0-9_]+)\\s*=\\s*([^\\n]*)$", "i");
 		if (cmd.match(text) && cmd.matched(1).indexOf('=') > -1) {
 			if (keyVal.match(cmd.matched(1))) {
 				var key = StringTools.rtrim(keyVal.matched(1));
