@@ -806,7 +806,6 @@ class Hix {
 		if (!inComment)
 			return null;
 
-		Log.log('$text');
 		var header = new EReg(HEADER_START + "(:\\w+)?\\s*([^\\n]*)$", "i");
 
 		// See if there is any stuff after the header declaration
