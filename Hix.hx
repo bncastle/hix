@@ -1,4 +1,3 @@
-import haxe.macro.Expr.TypeDefKind;
 import haxe.ds.StringMap;
 import haxe.Template;
 import sys.io.File;
@@ -15,9 +14,9 @@ import lib.*;
 // Author: Pixelbyte studios
 // Date: June 2019
 //
-// ::hix       -main ${filenameNoExt} -cp src -cpp bin -D gen_cfg -D analyzer --no-traces -dce full
+// ::hix       -main ${filenameNoExt} -cp src -cpp bin -D analyzer --no-traces -dce full
 // ::hix:debug -main ${filenameNoExt} -cp src -cpp bin
-// ::hix:run   -main Hix -cp src --interp
+// ::hix:run   -main ${filenameNoExt} -cp src --interp
 //
 
 enum FileGenType {

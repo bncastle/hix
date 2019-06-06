@@ -98,16 +98,24 @@ available flags:
         \"//This program can be compiled with the Hix.exe utility\",
         \"::if (author != null):://Author: ::author::::else:://::end::\",
         \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-        \"//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin --no-traces -dce full\",
-        \"//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::p::end:: -cpp bin\",
+        \"//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -D analyzer -cpp bin --no-traces -dce full\",
+        \"//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -cpp bin\",
+        \"//::hix:run   -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: --interp\",
         \"//\"
+    ],
+    \"hxBody\":[
+        \"class ::ClassName:: {\",
+        \"    static public function main():Void {\",
+        \"\",
+        \"    }\",
+        \"}\"
     ],
     \"csHeader\":[
         \"//This program can be compiled with the Hix.exe utility\",
         \"::if (author != null):://Author: ::author::::else:://::end::\",
         \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-        \"//::hix -optimize -out:${filenameNoExt}.exe ${filename}\",
-        \"//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\",
+        \"//::hix -main ${filenameNoExt} -optimize -out:${filenameNoExt}.exe ${filename}\",
+        \"//::hix:debug -define:DEBUG -main ${filenameNoExt} -out:${filenameNoExt}.exe ${filename}\",
         \"//\"
         ],
     \"csBody\":[
