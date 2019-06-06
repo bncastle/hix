@@ -40,7 +40,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.52";
+	static inline var VERSION = "0.53";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -204,7 +204,7 @@ class Hix {
 				return 0;
 			}
 		}
-		if (Util.ProcessFlag("gen", flags)) {
+		if (Util.ProcessFlag("g", flags)) {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
@@ -309,7 +309,7 @@ class Hix {
 		// Create our 'hix' instance
 		var h = new Hix(commentAnalyzer, deleteEmbeddedFiles);
 
-		if (Util.ProcessFlag("clean", flags)) {
+		if (Util.ProcessFlag("c", flags)) {
 			if (h.fileType == "c" || h.fileType == "cpp") {
 				if (FileSystem.exists(OBJ_DIR)) {
 					Log.log('[Hix] Cleaning ${OBJ_DIR} directory');

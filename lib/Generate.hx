@@ -73,16 +73,17 @@ class Generate {
 == Hix Version ::programVersion:: by Pixelbyte Studios ==
 Hix.exe [flags] <inputFile> [buildName]			
 available flags:
--v prints version info
--clean Cleans any intermediate files (currently for .c and .cpp src files only)
--l <inputFile> prints valid builds
+-c clean intermediate files (currently for .c and .cpp src files only)
 -e don't delete generated tmp files
--ks <key:value> adds or changes a key/value pair to the hix.json config file
+-g <filename> generate a default hix header for the given filename via the extension. If the file exists and no hix header is found, it will be inserted. Otherwise the file will be created with the header.
+-h print help
+-l print valid builds
 -kd <key> deletes the key from the hix.json config file
 -kg <key> gets the value of the key from the hix.json config file
--h prints help
--u prints usage info	
--gen <filename> Generates a default hix header for the given filename via the extension. If the file exists and no hix header is found, it will be inserted. Otherwise the file will be created with the header.";
+-ks <key:value> adds or changes a key/value pair to the hix.json config file
+-u print usage info	
+-v prints version info
+";
 		var params = {programVersion: version};
 		var template = new haxe.Template(data);
 		return template.execute(params);
