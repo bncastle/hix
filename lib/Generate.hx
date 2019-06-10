@@ -114,8 +114,8 @@ available flags:
         \"//This program can be compiled with the Hix.exe utility\",
         \"::if (author != null):://Author: ::author::::else:://::end::\",
         \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-        \"//::hix -main ${filenameNoExt} -optimize -out:${filenameNoExt}.exe ${filename}\",
-        \"//::hix:debug -define:DEBUG -main ${filenameNoExt} -out:${filenameNoExt}.exe ${filename}\",
+        \"//::hix -optimize -out:${filenameNoExt}.exe ${filename}\",
+        \"//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\",
         \"//\"
         ],
     \"csBody\":[
