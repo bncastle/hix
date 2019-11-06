@@ -118,7 +118,7 @@ class Util{
 		}
 		for(e in validExts.keys())
 		{
-			var filename = FindFirstFileInDirWithExt(currentDirectory, e);
+			var filename = FindFirstFileInDirWithExt(currentDirectory, '.${e}');
 			if(filename != null) return filename;
 		}
 		return null;

@@ -39,7 +39,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.54";
+	static inline var VERSION = "0.55";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -333,7 +333,7 @@ class Hix {
 					Log.log('$buildName');
 				}
 			} else {
-				Log.error('No build instructions found in: $inputFile');
+				Log.error('No build instructions found for: $inputFile');
 			}
 			return 1;
 		}
@@ -753,7 +753,7 @@ class Hix {
 						return filename;
 					// Filename without the extension
 					case "filenameNoExt":
-						return new Path(filename).file;
+						return new Path(FileSystem.fullPath(filename)).file;
 					case "datetime":
 						var date = Date.now();
 						var cmd = matched.split('=');
