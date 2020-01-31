@@ -6,7 +6,6 @@ import sys.FileSystem;
 import sys.io.File;
 
 class FileTemplate {
-	static inline var HIX_TEMPLATE_DIR = "hix_templates";
 	static inline var HEADER_ONLY_SUFFIX = "_hdr";
 
 	var templateDir:String;
@@ -17,9 +16,9 @@ class FileTemplate {
 	function get_TemplateDir()
 		return templateDir;
 
-	public function new(template_dir:String = HIX_TEMPLATE_DIR) {
-		templateDir = template_dir;
-	}
+	public function new(template_dir:String) {
+		templateDir = Path.join([Path.directory(Sys.programPath()), template_dir]);
+    }
 
 	public function Init():StringMap<String> {
 		if (!FileSystem.exists(templateDir)) {
@@ -41,7 +40,7 @@ class FileTemplate {
 		return templateMap.exists(key);
 	}
 
-	public function GenerateFile(type:String, filePath:String, header_start:String,  macros:Dynamic):Bool {
+	public function GenerateFile(type:String, filePath:String, header_start:String, macros:Dynamic):Bool {
 		if (!templateMap.exists(type)) {
 			Log.error('A template of type ${type} was not found in ${templateDir}!');
 			return false;

@@ -49,6 +49,8 @@ class Hix {
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static inline var OBJ_DIR = "obj";
 
+	static inline var HIX_TEMPLATE_DIR = "hix_templates";
+
 	// Special hix.json config keys
 	static inline var KEY_AUTHOR = "author";
 	static inline var KEY_SETUP_ENV = "setupEnv";
@@ -218,7 +220,7 @@ class Hix {
 					
 			var filePath = Util.PopNextArg(args);
 			if (filePath != "") {
-				var container = new FileTemplate();
+				var container = new FileTemplate(HIX_TEMPLATE_DIR);
 				container.Init();
 				
 				if(container.GenerateFile(type, filePath, HEADER_START, {author: config.Get(KEY_AUTHOR), setupEnv: config.Get(KEY_SETUP_ENV), ClassName: new Path(filePath).file})){
