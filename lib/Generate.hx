@@ -95,74 +95,7 @@ available flags:
 		return "{
     \"author\":null,
     \"setupEnv\" : null,
-    \"editor\" : \"code\",
-    \"templates\": [
-        {
-            \"name\": \"c\",
-            \"ext\": \"c\",
-            \"header\": [
-                \"//This program can be compiled with the Hix.exe utility\",
-                \"::if (author != null):://Author: ::author::::else:://::end::\",
-                \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-                \"//::incDirs=\",
-                \"//::libDirs=\",
-                \"//::libs=\",
-                \"//::defines=_CRT_SECURE_NO_WARNINGS \",
-                \"//::hix\",
-                \"//\"
-            ],
-            \"body\": [
-                \"#include<stdio.h>\",
-                \"\",
-                \"int main(int argc,char* argv[])\",
-                \"{\",
-                \"    \",
-                \"    return 0;\",
-                \"}\"
-            ]
-        },
-        {
-            \"name\": \"hx\",
-            \"ext\": \"hx\",
-            \"header\": [
-                \"//This program can be compiled with the Hix.exe utility\",
-                \"::if (author != null):://Author: ::author::::else:://::end::\",
-                \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-                \"//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -D analyzer -cpp bin --no-traces -dce full\",
-                \"//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -cpp bin\",
-                \"//::hix:run   -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: --interp\",
-                \"//\"
-            ],
-            \"body\": [
-                \"class ::ClassName:: {\",
-                \"    static public function main():Void {\",
-                \"\",
-                \"    }\",
-                \"}\"
-            ]
-        },
-        {
-            \"name\": \"cs\",
-            \"ext\": \"cs\",
-            \"header\": [
-                \"//This program can be compiled with the Hix.exe utility\",
-                \"::if (author != null):://Author: ::author::::else:://::end::\",
-                \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-                \"//::hix -optimize -out:${filenameNoExt}.exe ${filename}\",
-                \"//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\",
-                \"//\"
-            ],
-            \"body\": [
-                \"public class ::ClassName::\",
-                \"{\",
-                \"    static void Main(string[] args)\",
-                \"    {\",
-                \"\",
-                \"    }\",
-                \"}\"
-            ]
-        }
-    ]
+    \"editor\" : \"code\"
 }";
 	}
 
@@ -176,5 +109,5 @@ available flags:
 			Log.error(new String(ex));
 			return null;
 		}
-	}
+    }
 }

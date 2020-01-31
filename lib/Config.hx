@@ -84,16 +84,16 @@ class Config {
 	// 	return ta;
 	// }
 
-	public function GetTemplateMap(key:String):StringMap<FileTemplate> {
-		var ta:Array<FileTemplate> = Get(key);
-		if (ta == null || ta.length == 0) return null;
+	// public function GetTemplateMap(key:String):StringMap<FileTemplate> {
+	// 	var ta:Array<FileTemplate> = Get(key);
+	// 	if (ta == null || ta.length == 0) return null;
 
-		var map = new StringMap<FileTemplate>();
-		for(template in ta){
-			map.set(template.name, template);
-		}
-		return map;
-	}
+	// 	var map = new StringMap<FileTemplate>();
+	// 	for(template in ta){
+	// 		map.set(template.name, template);
+	// 	}
+	// 	return map;
+	// }
 
 	public function GetMap(key:String):StringMap<String> {
 		if (key == null || key.length == 0)

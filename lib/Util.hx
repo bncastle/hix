@@ -40,7 +40,7 @@ class Util {
 	// returns null otherwise
 	public static function GetFirstFilenameFromArgs(args:Array<String>, mustExist:Bool = true):String {
 		for (arg in args) {
-			var fullName = sys.FileSystem.fullPath(arg);
+			var fullName = FileSystem.fullPath(arg);
 			var path = new Path(arg);
 			// To be considered a filename, it must have an extension
 			if (path.file != null && path.ext != null && (!mustExist || sys.FileSystem.exists(fullName)))
@@ -60,7 +60,7 @@ class Util {
 		path.ext = ext;
 		return path.toString();
 	}
-
+	
 	public static function GetFilesWithExt(dir:String, ext:String):Array<String> {
 		var files = FileSystem.readDirectory(dir);
 		var filtered = files.filter(function(name) {

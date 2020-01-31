@@ -40,7 +40,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.56";
+	static inline var VERSION = "0.57";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -48,6 +48,7 @@ class Hix {
 	static inline var HX_EXT = "hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static inline var OBJ_DIR = "obj";
+
 	// Special hix.json config keys
 	static inline var KEY_AUTHOR = "author";
 	static inline var KEY_SETUP_ENV = "setupEnv";
@@ -206,6 +207,7 @@ class Hix {
 		}
 		if (Util.ProcessFlag("g", flags)) {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
+			//NOTE: Currently not using this
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
 			var type = Util.PopNextArg(args);
@@ -213,74 +215,31 @@ class Hix {
 				Log.error("Must specify type!");
 				return 1;
 			}
-			
-			var map = config.GetTemplateMap("templates");
-			if(!map.exists(type)){
-				Log.error('A template of type ${type} was not found in ${config.Filename}!');
-				return 1;
-			}
-				
+					
 			var filePath = Util.PopNextArg(args);
-			if (filePath != null) {
-				var template = map.get(type);
-				var ext = template.ext;
-				if(ext == null || ext == "") 
-					ext = Util.GetExt(filePath);
-
-				//Set the file extension
-				filePath = Util.SetExt(filePath, ext);
-				trace('Filename to generate: ${filePath}');
-
-				if (template.header == null) {
-					Log.warn('Unable to find ${ext + "Header"} key in ${config.Filename}');
-				}
-				if (template.body == null) {
-					Log.warn('Unable to find ${ext + "Body"} key in ${config.Filename}');
-				}
-
-				if (template.header == null && template.body == null) {
-					Log.error('Unable to generate $filePath. Could not find ${ext + "Header"} or ${ext + "Body"} entries in ${config.Filename}');
-					return 1;
-				}
-
-				var header_content = Generate.Template(template.header, {author: config.Get(KEY_AUTHOR), setupEnv: config.Get(KEY_SETUP_ENV)});
-				var body_content = Generate.Template(template.body, {ClassName: new Path(filePath).file});
-				if (!FileSystem.exists(filePath)) {
-					var sb:StringBuf = new StringBuf();
-					if (header_content != null)
-						sb.add(header_content);
-					if (body_content != null) {
-						sb.addChar('\n'.code);
-						sb.add(body_content);
-					}
-					if (sb.length > 0)
-						File.saveContent(filePath, sb.toString());
-					else
-						Log.error('Unable to generate $filePath. Content was empty!');
-				} else { // The file exists so we must do more
-					var existingText = File.getContent(filePath);
-					// Search the file for a hix header
-					if (existingText.indexOf(HEADER_START) > -1) {
-						Log.warn('[Hix] found an existing header in "$filePath" aborted header insert');
-					} else {
-						try {
-							File.saveContent(filePath, header_content + existingText);
-						} catch (ex:Dynamic) {
-							Log.error(new String(ex));
+			if (filePath != "") {
+				var container = new FileTemplate();
+				container.Init();
+				
+				if(container.GenerateFile(type, filePath, HEADER_START, {author: config.Get(KEY_AUTHOR), setupEnv: config.Get(KEY_SETUP_ENV), ClassName: new Path(filePath).file})){
+					// If we find a '.' then try to open the new file in the editor if it is configured
+					var dot = Util.PopFirstNonFilename(args);
+					if (dot == ".") {
+						var editor = config.Get("editor");
+						if (editor != null) {
+							return Sys.command('$editor $filePath');
 						}
 					}
+					return 0;
 				}
-
-				// If we find a '.' then try to open the new file in the editor if it is configured
-				var dot = Util.PopFirstNonFilename(args);
-				if (dot == ".") {
-					var editor = config.Get("editor");
-					if (editor != null) {
-						return Sys.command('$editor $filePath');
-					}
-				}
+				else
+					return -1;
 			}
-			return 0;
+			else{
+				Log.error('Must specify an output filename!');
+				return 1;
+			}
+			return -1;
 		}
 
 		// Should we not delete generatedEmbeddedFiles?
