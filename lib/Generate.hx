@@ -43,6 +43,8 @@ class Generate {
  ${filenameNoExt} -> gets the name of the current file without the extension
  ${datetime} -> <optional strftime format specification>] ->Note not all strftime settings are supported
  ${datetime} -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
+ ${year} -> Returns the current year
+ ${config_key} -> If the given string exists in the config file, then its value will be returned
  
  You can also change the program that is executed with the args (by default it is haxe)
  by placing a special command BEFORE the start header:
@@ -75,7 +77,7 @@ Hix.exe [flags] <inputFile> [buildName]
 available flags:
 -c clean intermediate files (currently for .c and .cpp src files only)
 -e don't delete generated tmp files
--g <filename> generate a default hix header for the given filename via the extension. If the file exists and no hix header is found, it will be inserted. Otherwise the file will be created with the header.
+-g <type> <filename> generate a default hix header for the given template type. If the file exists and no header is found, it will be inserted. Otherwise the file will be created with the template.
 -h print help
 -l print valid builds
 -kd <key> deletes the key from the hix.json config file
@@ -94,60 +96,74 @@ available flags:
     \"author\":null,
     \"setupEnv\" : null,
     \"editor\" : \"code\",
-    \"hxHeader\":[
-        \"//This program can be compiled with the Hix.exe utility\",
-        \"::if (author != null):://Author: ::author::::else:://::end::\",
-        \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-        \"//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -D analyzer -cpp bin --no-traces -dce full\",
-        \"//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -cpp bin\",
-        \"//::hix:run   -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: --interp\",
-        \"//\"
-    ],
-    \"hxBody\":[
-        \"class ::ClassName:: {\",
-        \"    static public function main():Void {\",
-        \"\",
-        \"    }\",
-        \"}\"
-    ],
-    \"csHeader\":[
-        \"//This program can be compiled with the Hix.exe utility\",
-        \"::if (author != null):://Author: ::author::::else:://::end::\",
-        \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-        \"//::hix -optimize -out:${filenameNoExt}.exe ${filename}\",
-        \"//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\",
-        \"//\"
-        ],
-    \"csBody\":[
-      \"public class ::ClassName::\",
-      \"{\",
-      \"    static void Main(string[] args)\",
-      \"    {\",
-      \"\",
-      \"    }\",
-      \"}\"  
-    ],
-    \"cHeader\":[
-        \"//This program can be compiled with the Hix.exe utility\",
-        \"::if (author != null):://Author: ::author::::else:://::end::\",
-        \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
-        \"//::incDirs=\",
-        \"//::libDirs=\",
-        \"//::libs=\",
-        \"//::defines=_CRT_SECURE_NO_WARNINGS \",
-        \"//::hix\",
-        \"//\"
-        ],
-    \"cBody\" :[
-        \"#include<stdio.h>\",
-        \"\",
-        \"int main(int argc,char* argv[])\",
-        \"{\",
-        \"    \",
-        \"    return 0;\",
-        \"}\"
-        ]
-    }";
+    \"templates\": [
+        {
+            \"name\": \"c\",
+            \"ext\": \"c\",
+            \"header\": [
+                \"//This program can be compiled with the Hix.exe utility\",
+                \"::if (author != null):://Author: ::author::::else:://::end::\",
+                \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
+                \"//::incDirs=\",
+                \"//::libDirs=\",
+                \"//::libs=\",
+                \"//::defines=_CRT_SECURE_NO_WARNINGS \",
+                \"//::hix\",
+                \"//\"
+            ],
+            \"body\": [
+                \"#include<stdio.h>\",
+                \"\",
+                \"int main(int argc,char* argv[])\",
+                \"{\",
+                \"    \",
+                \"    return 0;\",
+                \"}\"
+            ]
+        },
+        {
+            \"name\": \"hx\",
+            \"ext\": \"hx\",
+            \"header\": [
+                \"//This program can be compiled with the Hix.exe utility\",
+                \"::if (author != null):://Author: ::author::::else:://::end::\",
+                \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
+                \"//::hix       -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -D analyzer -cpp bin --no-traces -dce full\",
+                \"//::hix:debug -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: -cpp bin\",
+                \"//::hix:run   -main ${filenameNoExt} ::if (SrcDir != null)::-cp ::SrcDir::::else::::end:: --interp\",
+                \"//\"
+            ],
+            \"body\": [
+                \"class ::ClassName:: {\",
+                \"    static public function main():Void {\",
+                \"\",
+                \"    }\",
+                \"}\"
+            ]
+        },
+        {
+            \"name\": \"cs\",
+            \"ext\": \"cs\",
+            \"header\": [
+                \"//This program can be compiled with the Hix.exe utility\",
+                \"::if (author != null):://Author: ::author::::else:://::end::\",
+                \"::if (setupEnv != null):://::SetupKey:: ::setupEnv::::else:://::end::\",
+                \"//::hix -optimize -out:${filenameNoExt}.exe ${filename}\",
+                \"//::hix:debug -define:DEBUG -out:${filenameNoExt}.exe ${filename}\",
+                \"//\"
+            ],
+            \"body\": [
+                \"public class ::ClassName::\",
+                \"{\",
+                \"    static void Main(string[] args)\",
+                \"    {\",
+                \"\",
+                \"    }\",
+                \"}\"
+            ]
+        }
+    ]
+}";
 	}
 
 	public static function Template(textArray:Array<String>, macros:Dynamic):String {

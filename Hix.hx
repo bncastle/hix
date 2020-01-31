@@ -1,3 +1,4 @@
+import haxe.DynamicAccess;
 import haxe.ds.StringMap;
 import haxe.Template;
 import sys.io.File;
@@ -39,7 +40,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.55";
+	static inline var VERSION = "0.56";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -82,7 +83,7 @@ class Hix {
 	public var Succeeded(get, null):Bool = false;
 	public var FoundHeader(null, default):Bool = false;
 	public var StateName(get, null):String;
-	
+
 	function get_StateName():String {
 		var result:String = "null";
 
@@ -207,36 +208,54 @@ class Hix {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
-			var filePath = Util.GetFirstFilenameFromArgs(args, false);
+			var type = Util.PopNextArg(args);
+			if (type == "") {
+				Log.error("Must specify type!");
+				return 1;
+			}
+			
+			var map = config.GetTemplateMap("templates");
+			if(!map.exists(type)){
+				Log.error('A template of type ${type} was not found in ${config.Filename}!');
+				return 1;
+			}
+				
+			var filePath = Util.PopNextArg(args);
 			if (filePath != null) {
-				var ext = Util.GetExt(filePath);
-				var header_template = config.Get(ext + "Header");
-				var body_template = config.Get(ext + "Body");
-				if (header_template == null) {
+				var template = map.get(type);
+				var ext = template.ext;
+				if(ext == null || ext == "") 
+					ext = Util.GetExt(filePath);
+
+				//Set the file extension
+				filePath = Util.SetExt(filePath, ext);
+				trace('Filename to generate: ${filePath}');
+
+				if (template.header == null) {
 					Log.warn('Unable to find ${ext + "Header"} key in ${config.Filename}');
 				}
-				if (body_template == null) {
+				if (template.body == null) {
 					Log.warn('Unable to find ${ext + "Body"} key in ${config.Filename}');
 				}
 
-				if(header_template == null && body_template == null) {
+				if (template.header == null && template.body == null) {
 					Log.error('Unable to generate $filePath. Could not find ${ext + "Header"} or ${ext + "Body"} entries in ${config.Filename}');
 					return 1;
 				}
 
-				var header_content = Generate.Template(header_template, {author: config.Get(KEY_AUTHOR), setupEnv: config.Get(KEY_SETUP_ENV)});
-				var body_content = Generate.Template(body_template, {ClassName: new Path(filePath).file});
+				var header_content = Generate.Template(template.header, {author: config.Get(KEY_AUTHOR), setupEnv: config.Get(KEY_SETUP_ENV)});
+				var body_content = Generate.Template(template.body, {ClassName: new Path(filePath).file});
 				if (!FileSystem.exists(filePath)) {
 					var sb:StringBuf = new StringBuf();
 					if (header_content != null)
 						sb.add(header_content);
-					if (body_content != null){
+					if (body_content != null) {
 						sb.addChar('\n'.code);
 						sb.add(body_content);
 					}
-					if(sb.length > 0)
+					if (sb.length > 0)
 						File.saveContent(filePath, sb.toString());
-					else 
+					else
 						Log.error('Unable to generate $filePath. Content was empty!');
 				} else { // The file exists so we must do more
 					var existingText = File.getContent(filePath);
@@ -252,11 +271,11 @@ class Hix {
 					}
 				}
 
-				//If we find a '.' then try to open the new file in the editor if it is configured
-				var dot = Util.ParseFirstNonFilename(args);
-				if(dot == "."){
+				// If we find a '.' then try to open the new file in the editor if it is configured
+				var dot = Util.PopFirstNonFilename(args);
+				if (dot == ".") {
 					var editor = config.Get("editor");
-					if (editor != null){
+					if (editor != null) {
 						return Sys.command('$editor $filePath');
 					}
 				}
@@ -283,7 +302,7 @@ class Hix {
 		}
 
 		// See if there is a build name specified
-		inputBuildName = Util.ParseFirstNonFilename(args);
+		inputBuildName = Util.PopFirstNonFilename(args);
 		if (inputBuildName == null)
 			inputBuildName = DEFAULT_BUILD_NAME;
 
@@ -579,7 +598,7 @@ class Hix {
 			Log.error("Unable to find any compiler args in the header!");
 			stateFunction = StateFail;
 		} else if (!inComment && currentBuildArgs.length > 0) // Found something
-		{		
+		{
 			trace("[Hix] Success. Found compiler args");
 			CreateBuilder(currentBuildName, currentBuildArgs);
 			// state = State.StateSuccess;
@@ -762,6 +781,8 @@ class Hix {
 							return DateTools.format(date, "%m/%e/%Y_%H:%M:%S");
 						else
 							return DateTools.format(date, cmd[1]);
+					case "year":
+						return Std.string(Date.now().getFullYear());
 					default:
 						if (keyValues.exists(matched)) {
 							if (matched == key) {

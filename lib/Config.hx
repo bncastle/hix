@@ -1,5 +1,7 @@
 package lib;
 
+import haxe.xml.Access;
+import haxe.Template;
 import haxe.ds.StringMap;
 import haxe.Json;
 import sys.io.File;
@@ -13,10 +15,12 @@ class Config {
 	var cfgFullPath:String;
 
 	public var Filename(get, null):String;
+
 	function get_Filename()
 		return cfgFilename;
 
 	public var FullPath(get, null):String;
+
 	function get_FullPath()
 		return cfgFullPath;
 
@@ -33,7 +37,7 @@ class Config {
 	public static function Create(cfg_filename:String = "hix.json"):Config {
 		var c = new Config(cfg_filename);
 		c.Init();
-		return c;		
+		return c;
 	}
 
 	function Init() {
@@ -42,7 +46,7 @@ class Config {
 				trace('config not found. Generate a new one.');
 				json = {};
 			} else {
-				trace('Get config from hr.json.');
+				trace('Get config from ${cfgFilename}');
 				var text:String = File.getContent(cfgFullPath);
 				json = Json.parse(text);
 			}
@@ -68,11 +72,27 @@ class Config {
 		else {
 			if (Reflect.hasField(json, key)) {
 				return Reflect.field(json, key);
-			} else{
+			} else {
 				Log.error('Field: $key was not found in config file [$Filename]!');
 				return null;
 			}
 		}
+	}
+
+	// public function GetTemplateArray(key:String):Array<FileTemplate> {
+	// 	var ta:Array<FileTemplate> = Get(key);
+	// 	return ta;
+	// }
+
+	public function GetTemplateMap(key:String):StringMap<FileTemplate> {
+		var ta:Array<FileTemplate> = Get(key);
+		if (ta == null || ta.length == 0) return null;
+
+		var map = new StringMap<FileTemplate>();
+		for(template in ta){
+			map.set(template.name, template);
+		}
+		return map;
 	}
 
 	public function GetMap(key:String):StringMap<String> {
@@ -80,19 +100,18 @@ class Config {
 			return null;
 		else {
 			if (Reflect.hasField(json, key)) {
-				var obj = Reflect.field(json,key);
+				var obj = Reflect.field(json, key);
 				return Decode(obj);
-			} else{
+			} else {
 				Log.error('Field: $key was not found in config file [$Filename]!');
 				return null;
 			}
 		}
 	}
 
-	static function Decode<T>(obj:Dynamic) : StringMap<T>{
+	static function Decode<T>(obj:Dynamic):StringMap<T> {
 		var inst = new StringMap<T>();
-		for(field in Reflect.fields(obj))
-		{
+		for (field in Reflect.fields(obj)) {
 			inst.set(field, Reflect.field(obj, field));
 		}
 		return inst;
