@@ -72,7 +72,7 @@ class Generate {
 
 	public static function Usage(version:String):String {
 		var data:String = "
-== Hix Version ::programVersion:: by Pixelbyte Studios ==
+== Hix Version ::programVersion:: by Pixelbyte Studios ::year::==
 Hix.exe [flags] <inputFile> [buildName]			
 available flags:
 -c clean intermediate files (currently for .c and .cpp src files only)
@@ -86,7 +86,7 @@ available flags:
 -u print usage info	
 -v prints version info
 ";
-		var params = {programVersion: version};
+		var params = {programVersion: version, year : Date.now().getFullYear()};
 		var template = new haxe.Template(data);
 		return template.execute(params);
 	}
@@ -98,16 +98,4 @@ available flags:
     \"editor\" : \"code\"
 }";
 	}
-
-	public static function Template(textArray:Array<String>, macros:Dynamic):String {
-		if (textArray == null)
-			return null;
-		var template = new haxe.Template(textArray.join("\n"));
-		try {
-			return template.execute(macros);
-		} catch (ex:Dynamic) {
-			Log.error(new String(ex));
-			return null;
-		}
-    }
 }

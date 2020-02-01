@@ -40,7 +40,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.57";
+	static inline var VERSION = "0.58";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -209,7 +209,6 @@ class Hix {
 		}
 		if (Util.ProcessFlag("g", flags)) {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
-			//NOTE: Currently not using this
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
 			var type = Util.PopNextArg(args);
@@ -223,7 +222,9 @@ class Hix {
 				var container = new FileTemplate(HIX_TEMPLATE_DIR);
 				container.Init();
 				
-				if(container.GenerateFile(type, filePath, HEADER_START, {author: config.Get(KEY_AUTHOR), setupEnv: config.Get(KEY_SETUP_ENV), ClassName: new Path(filePath).file})){
+				if(container.GenerateFile(type, filePath, HEADER_START, 
+					{author: config.Get(KEY_AUTHOR), setup_env: config.Get(KEY_SETUP_ENV), 
+						class_name: new Path(filePath).file, year : Date.now().getFullYear()})){
 					// If we find a '.' then try to open the new file in the editor if it is configured
 					var dot = Util.PopFirstNonFilename(args);
 					if (dot == ".") {
