@@ -40,7 +40,7 @@ class FileTemplate {
 		return templateMap.exists(key);
 	}
 
-	public function GenerateFile(type:String, filePath:String, header_start:String, macros:Dynamic):Bool {
+	public function GenerateFile(type:String, filePath:String, header_start:String, context:Dynamic):Bool {
 		if (!templateMap.exists(type)) {
 			Log.error('A template of type ${type} was not found in ${templateDir}!');
 			return false;
@@ -55,7 +55,7 @@ class FileTemplate {
 
         Log.log('Output File: ${filePath}');
 
-        var content = GenerateTemplate(template, macros);
+        var content = GenerateTemplate(template, context);
         // trace('Template File Content: ${content}');
 		if (!FileSystem.exists(filePath)) {
 			if (isHeaderOnly) {
@@ -95,12 +95,12 @@ class FileTemplate {
 		}
     }
     
-    static function GenerateTemplate(template_text:String, macros:Dynamic):String {
+    static function GenerateTemplate(template_text:String, context:Dynamic):String {
 		if (template_text == null)
 			return null;
 		var template = new haxe.Template(template_text);
 		try {
-			return template.execute(macros);
+			return template.execute(context);
 		} catch (ex:Dynamic) {
 			Log.error(new String(ex));
 			return null;
