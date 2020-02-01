@@ -211,16 +211,19 @@ class Hix {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
+			var container = new FileTemplate(HIX_TEMPLATE_DIR);
+			container.Init();
+
 			var type = Util.PopNextArg(args);
 			if (type == "") {
-				Log.error("Must specify type!");
+				Log.log("Valid templates:");
+				container.print_vaild();
+				// Log.error("Must specify type!");
 				return 1;
 			}
 					
 			var filePath = Util.PopNextArg(args);
 			if (filePath != "") {
-				var container = new FileTemplate(HIX_TEMPLATE_DIR);
-				container.Init();
 				
 				if(container.GenerateFile(type, filePath, HEADER_START, 
 					{author: config.Get(KEY_AUTHOR), setup_env: config.Get(KEY_SETUP_ENV), 

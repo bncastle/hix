@@ -1,5 +1,6 @@
 package lib;
 
+import haxe.xml.Access;
 import haxe.io.Path;
 import haxe.ds.StringMap;
 import sys.FileSystem;
@@ -10,6 +11,7 @@ class FileTemplate {
 
 	var templateDir:String;
 	var templateMap:StringMap<String>;
+	var templateNames:Array<String>;	
 
 	public var TemplateDir(get, null):String;
 
@@ -18,7 +20,13 @@ class FileTemplate {
 
 	public function new(template_dir:String) {
 		templateDir = Path.join([Path.directory(Sys.programPath()), template_dir]);
-    }
+	}
+	
+	public function print_vaild() {
+		for (t in templateNames){
+			Log.log(t);
+		}
+	}
 
 	public function Init():StringMap<String> {
 		if (!FileSystem.exists(templateDir)) {
@@ -30,7 +38,9 @@ class FileTemplate {
 		// Assume ALL files in this directory are template files
 		var files = FileSystem.readDirectory(templateDir);
 		templateMap = new StringMap<String>();
+		templateNames = new Array<String>();
 		for (file in files){
+			templateNames.push(Path.withoutExtension(file));
 			templateMap.set(Path.withoutExtension(file), Path.join([templateDir, file]));
         }
 		return templateMap;
