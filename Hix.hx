@@ -138,13 +138,7 @@ class Hix {
 
 		// Strip any bool flags from args
 		var flags = Util.ParseArgOptions(args);
-		var config:Config = Config.Create();
-
-		if (!config.Exists) {
-			File.saveContent(config.FullPath, Generate.DefaultConfig());
-			config = Config.Create();
-			Log.log('[Hix] Creating new Config file at: ${config.FullPath}');
-		}
+		var config:Config = Config.Create("hix.json", Generate.DefaultConfig);
 
 		// Check for any command line switches here
 		// See Generate.Usage() for documentation on these flags

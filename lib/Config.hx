@@ -9,7 +9,7 @@ import sys.FileSystem;
 class Config {
 	// This holds the json content of our config file
 	var json:Dynamic;
-	var cfgFilename:String = "hix.json";
+	var cfgFilename:String;
 	var cfgFullPath:String;
 
 	public var Filename(get, null):String;
@@ -32,22 +32,24 @@ class Config {
 		cfgFullPath = Path.join([Path.directory(Sys.programPath()), cfgFilename]);
 	}
 
-	public static function Create(cfg_filename:String = "hix.json"):Config {
+	public static function Create(cfg_filename:String, createDefaultFunc:Void->String):Config {
 		var c = new Config(cfg_filename);
-		c.Init();
+		c.Init(createDefaultFunc);
 		return c;
 	}
 
-	function Init() {
+	function Init(createDefaultFunc:Void->String) {
 		if (json == null) {
 			if (!Exists) {
-				trace('config not found. Generate a new one.');
-				json = {};
-			} else {
-				trace('Get config from ${cfgFilename}');
-				var text:String = File.getContent(cfgFullPath);
-				json = Json.parse(text);
-			}
+				Log.log('Config not found. Generating a new one...');
+				if(createDefaultFunc == null)
+					json = {};
+				else
+					File.saveContent(FullPath, createDefaultFunc());
+			} 
+			trace('Get config from ${cfgFilename}');
+			var text:String = File.getContent(cfgFullPath);
+			json = Json.parse(text);
 		}
 	}
 
