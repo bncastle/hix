@@ -1,6 +1,5 @@
 package lib;
 
-import haxe.xml.Access;
 import haxe.io.Path;
 import haxe.ds.StringMap;
 import sys.FileSystem;
@@ -31,7 +30,6 @@ class FileTemplate {
 	public function Init():StringMap<String> {
 		if (!FileSystem.exists(templateDir)) {
 			Log.warn('Template directory: ${templateDir} does not exst. Creating...');
-			// TODO: Create
 			FileSystem.createDirectory(templateDir);
 		}
 
@@ -61,7 +59,7 @@ class FileTemplate {
         var ext = Util.GetExt(templateFilePath);
         filePath = Util.SetExt(filePath, ext);
 		var template = File.getContent(templateFilePath);
-		var isHeaderOnly = StringTools.endsWith(templateFilePath, HEADER_ONLY_SUFFIX);
+		var isHeaderOnly = StringTools.endsWith(template, HEADER_ONLY_SUFFIX);
 
         Log.log('Output File: ${filePath}');
 

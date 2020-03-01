@@ -10,7 +10,7 @@ class Comment{
         this.multiEnd = multiEnd;
     }
 
-    public function IsSingle(text:String):Bool{ return singleLine.match(text);}
-    public function IsMultiStart(text:String):Bool{ return multiStart.match(text);}
-    public function IsMultiEnd(text:String):Bool{ return multiEnd.match(text);}
+    public function IsSingle(text:String):Bool{ return text != null && singleLine.match(text);}
+    public function IsMultiStart(text:String):Bool{ return text != null && multiStart.match(text);}
+    public function IsMultiEnd(text:String):Bool{ return text != null && multiEnd.match(text);}
 }

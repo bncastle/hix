@@ -40,7 +40,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.58";
+	static inline var VERSION = "0.59";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -221,7 +221,8 @@ class Hix {
 				// Log.error("Must specify type!");
 				return 1;
 			}
-					
+			
+			//Grab the directory in which to generate the new file
 			var filePath = Util.PopNextArg(args);
 			if (filePath != "") {
 				
@@ -232,6 +233,7 @@ class Hix {
 					var dot = Util.PopFirstNonFilename(args);
 					if (dot == ".") {
 						var editor = config.Get("editor");
+						//TODO: Check if the specified editor actually exists
 						if (editor != null) {
 							return Sys.command('$editor $filePath');
 						}

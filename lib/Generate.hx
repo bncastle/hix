@@ -77,7 +77,7 @@ Hix.exe [flags] <inputFile> [buildName]
 available flags:
 -c clean intermediate files (currently for .c and .cpp src files only)
 -e don't delete generated tmp files
--g <type> <filename> generate a default hix header for the given template type. If the file exists and no header is found, it will be inserted. Otherwise the file will be created with the template.
+-g <type> <filename> generate a new file for the given template type. If the file exists and the template is a header-only file, it will be inserted.
 -h print help
 -l print valid builds
 -kd <key> deletes the key from the hix.json config file

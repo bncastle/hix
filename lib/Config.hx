@@ -1,7 +1,5 @@
 package lib;
 
-import haxe.xml.Access;
-import haxe.Template;
 import haxe.ds.StringMap;
 import haxe.Json;
 import sys.io.File;
