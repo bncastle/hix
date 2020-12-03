@@ -1,0 +1,13 @@
+== Hix Version ::programVersion:: by Pixelbyte Studios ::year::==
+Hix.exe [flags] <inputFile> [buildName]			
+available flags:
+-c clean intermediate files (currently for .c and .cpp src files only)
+-e don't delete generated tmp files
+-g <type> <filename> generate a new file for the given template type. If the file exists and the template is a header-only file, it will be inserted.
+-h print help
+-l print valid builds
+-kd <key> deletes the key from the hix.json config file
+-kg <key> gets the value of the key from the hix.json config file
+-ks <key:value> adds or changes a key/value pair to the hix.json config file
+-u print usage info	
+-v prints version info

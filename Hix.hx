@@ -1,4 +1,3 @@
-import haxe.DynamicAccess;
 import haxe.ds.StringMap;
 import haxe.Template;
 import sys.io.File;
@@ -15,9 +14,9 @@ import lib.*;
 // Author: Pixelbyte studios
 // Date: June 2019
 //
-// ::hix       -main ${filenameNoExt} -cp src -cpp bin -D analyzer --no-traces -dce full
-// ::hix:debug -main ${filenameNoExt} -cp src -cpp bin
-// ::hix:run   -main ${filenameNoExt} -cp src --interp
+// ::hix       -main ${filenameNoExt} --resource text_resources/default.json@default_cfg --resource text_resources/help.txt@help --resource text_resources/usage.txt@usage -cp src -cpp bin -D analyzer --no-traces -dce full
+// ::hix:debug -main ${filenameNoExt} --resource text_resources/default.json@default_cfg --resource text_resources/help.txt@help --resource text_resources/usage.txt@usage -cp src -cpp bin
+// ::hix:run   -main ${filenameNoExt} --resource text_resources/default.json@default_cfg --resource text_resources/help.txt@help --resource text_resources/usage.txt@usage -cp src --interp
 //
 
 enum FileGenType {
@@ -40,11 +39,12 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.59";
+	static inline var VERSION = "0.60";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
 	static inline var SPECIAL_CHAR = "$";
+	static inline var HIX_CFG_FILENAME = "hix.json";
 	static inline var HX_EXT = "hx";
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static inline var OBJ_DIR = "obj";
@@ -89,7 +89,6 @@ class Hix {
 
 	function get_StateName():String {
 		var result:String = "null";
-
 		if (stateFunction != null) {
 			for (name in Reflect.fields(this)) {
 				var field:Dynamic = Reflect.field(this, name);
@@ -138,7 +137,7 @@ class Hix {
 
 		// Strip any bool flags from args
 		var flags = Util.ParseArgOptions(args);
-		var config:Config = Config.Create("hix.json", Generate.DefaultConfig);
+		var config:Config = Config.Create(HIX_CFG_FILENAME, Generate.DefaultConfig);
 
 		// Check for any command line switches here
 		// See Generate.Usage() for documentation on these flags

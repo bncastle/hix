@@ -1,5 +1,8 @@
 #https://github.com/HaxeFoundation/hxcpp/blob/master/docs/build_xml/Defines.md
 -main Hix 
+--resource text_resources/default.json@default_cfg
+--resource text_resources/help.txt@help
+--resource text_resources/usage.txt@usage
 -cp src
 -cpp bin
 -D exe_link

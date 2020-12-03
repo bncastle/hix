@@ -79,33 +79,17 @@ class Config {
 		}
 	}
 
-	// public function GetTemplateArray(key:String):Array<FileTemplate> {
-	// 	var ta:Array<FileTemplate> = Get(key);
-	// 	return ta;
-	// }
 
-	// public function GetTemplateMap(key:String):StringMap<FileTemplate> {
-	// 	var ta:Array<FileTemplate> = Get(key);
-	// 	if (ta == null || ta.length == 0) return null;
-
-	// 	var map = new StringMap<FileTemplate>();
-	// 	for(template in ta){
-	// 		map.set(template.name, template);
-	// 	}
-	// 	return map;
-	// }
-
-	public function GetMap(key:String):StringMap<String> {
-		if (key == null || key.length == 0)
+	public function GetMap():StringMap<String>{
+		if (json == null)
 			return null;
 		else {
-			if (Reflect.hasField(json, key)) {
-				var obj = Reflect.field(json, key);
-				return Decode(obj);
-			} else {
-				Log.error('Field: $key was not found in config file [$Filename]!');
-				return null;
+			var map = new StringMap<String>();
+			var iter:haxe.DynamicAccess<Dynamic> = json;
+			for (key => val in iter){
+				map.set(key,val);
 			}
+			return map;
 		}
 	}
 
@@ -120,7 +104,7 @@ class Config {
 	public function Save() {
 		var f = Reflect.fields(json);
 		if (json != null && f != null && f.length > 0)
-			File.saveContent(cfgFullPath, Json.stringify(json));
+			File.saveContent(cfgFullPath, Json.stringify(json, null, "   "));
 		else if (Exists)
 			FileSystem.deleteFile(cfgFullPath);
 	}
