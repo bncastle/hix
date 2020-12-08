@@ -39,7 +39,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.60";
+	static inline var VERSION = "0.61";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -49,7 +49,7 @@ class Hix {
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static inline var OBJ_DIR = "obj";
 
-	static inline var HIX_TEMPLATE_DIR = "hix_templates";
+	static inline var FILE_TEMPLATE_DIR = "file_templates";
 
 	// Special hix.json config keys
 	static inline var KEY_AUTHOR = "author";
@@ -63,7 +63,8 @@ class Hix {
 		"cpp" => "cl.exe",
 		"js" => "node.exe",
 		"ts" => "tsc.exe",
-		"lua" => "lua.exe"
+		"lua" => "lua.exe",
+		"zig" => "zig.exe"
 	];
 	static var CommentType:StringMap<Comment> = [
 		"default" => new Comment(~/^\s*\/\//, ~/\/\*/, ~/\*\//),
@@ -204,7 +205,7 @@ class Hix {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
-			var container = new FileTemplate(HIX_TEMPLATE_DIR);
+			var container = new FileTemplate(FILE_TEMPLATE_DIR);
 			container.Init();
 
 			var type = Util.PopNextArg(args);
