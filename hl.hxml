@@ -1,6 +1,6 @@
 -main Hix
---resource text_resources/default.json@default_cfg
---resource text_resources/help.txt@help
---resource text_resources/usage.txt@usage
+--resource text_resources/default.json
+--resource text_resources/help.txt
+--resource text_resources/usage.txt
 -cp src
 -hl hix.hl

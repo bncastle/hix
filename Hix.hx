@@ -12,11 +12,11 @@ import lib.*;
 // build.hxml file or having to specify command line args every time you want to do a build.
 //
 // Author: Pixelbyte studios
-// Date: June 2019
+// Date: December 2020
 //
-// ::hix       -main ${filenameNoExt} --resource text_resources/default.json@default_cfg --resource text_resources/help.txt@help --resource text_resources/usage.txt@usage -cp src -cpp bin -D analyzer --no-traces -dce full
-// ::hix:debug -main ${filenameNoExt} --resource text_resources/default.json@default_cfg --resource text_resources/help.txt@help --resource text_resources/usage.txt@usage -cp src -cpp bin
-// ::hix:run   -main ${filenameNoExt} --resource text_resources/default.json@default_cfg --resource text_resources/help.txt@help --resource text_resources/usage.txt@usage -cp src --interp
+// ::hix       -main ${filenameNoExt} ${dirToResources:file_templates}  -cp src -cpp bin -D analyzer --no-traces -dce full
+// ::hix:debug -main ${filenameNoExt} ${dirToResources:file_templates}  -cp src -cpp bin
+// ::hix:run   -main ${filenameNoExt} ${dirToResources:file_templates}  -cp src --interp
 //
 
 enum FileGenType {
@@ -39,7 +39,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.61";
+	static inline var VERSION = "0.62";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -49,7 +49,7 @@ class Hix {
 	static inline var DEFAULT_BUILD_NAME = "default";
 	static inline var OBJ_DIR = "obj";
 
-	static inline var FILE_TEMPLATE_DIR = "file_templates";
+	static inline var HIX_TEMPLATE_DIR = "hix_templates";
 
 	// Special hix.json config keys
 	static inline var KEY_AUTHOR = "author";
@@ -205,7 +205,7 @@ class Hix {
 			// Setup Template globals (these have lower priority than the macros passed into template.execute())
 			Reflect.setField(Template.globals, 'SetupKey', '::setupEnv =');
 
-			var container = new FileTemplate(FILE_TEMPLATE_DIR);
+			var container = new FileTemplate(HIX_TEMPLATE_DIR);
 			container.Init();
 
 			var type = Util.PopNextArg(args);
@@ -717,8 +717,7 @@ class Hix {
 
 	// DO any string search/replace here
 	// A special string starts with '$' and can contain any chars except for whitespace
-	// var sp = new EReg("^\\$([^\\s]+)", "i");
-	var sp = new EReg("\\${([^\\]]+)}", "i");
+	var sp = new EReg("\\${([^\\}:]+):?([^\\}]+)?}", "i");
 
 	function ProcessSpecialCommand(text:String, key:String = null, returnEmptyIfNotFound:Bool = false):String {
 		if (sp.match(text)) {
@@ -727,13 +726,29 @@ class Hix {
 
 			text = sp.map(text, function(r) {
 				var matched = r.matched(1);
+				var sub = r.matched(2);
 				// Process special commands here
 				switch (matched) {
 					case "filename":
 						return filename;
 					// Filename without the extension
 					case "filenameNoExt":
-						return new Path(FileSystem.fullPath(filename)).file;
+						return Path.withoutExtension(filename);
+					//This command adds all the files in the specified directory as embedded resources
+					case "dirToResources":
+						var files = Util.GetFilesWithExt(sub, null);
+						var sb = new StringBuf();
+
+						if (!FileSystem.exists(sub)) {
+							Log.error('Directory: ${sub} does not exst! Skipping this command!!');
+							return "";
+						}
+
+						for( file in files){
+							if(sb.length > 0) sb.add(' ');
+							sb.add('--resource ${Path.join([sub,file])}');//@${Path.withoutExtension(file)}');
+						}
+						return sb.toString();
 					case "datetime":
 						var date = Date.now();
 						var cmd = matched.split('=');

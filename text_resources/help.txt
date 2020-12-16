@@ -36,6 +36,7 @@
  ${datetime} -> without specifying a strftime format will output: %m/%e/%Y_%H:%M:%S
  ${year} -> Returns the current year
  ${config_key} -> If the given string exists in the config file, then its value will be returned
+ ${dirToResources:directory} -> makes all of the files in the given directory into an embedded resource having the name of the file
  
  You can also change the program that is executed with the args (by default it is haxe)
  by placing a special command BEFORE the start header:

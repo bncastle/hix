@@ -1,5 +1,6 @@
 package lib;
 
+import haxe.Resource;
 import haxe.io.Path;
 import haxe.ds.StringMap;
 import sys.FileSystem;
@@ -31,6 +32,12 @@ class FileTemplate {
 		if (!FileSystem.exists(templateDir)) {
 			Log.warn('Template directory: ${templateDir} does not exst. Creating...');
 			FileSystem.createDirectory(templateDir);
+
+			//TODO: Fill the directory with our built-in templates
+			var keyValues:Array<KeyValue> = Macros.GetTemplateFileNames();
+			for (obj in keyValues){
+				File.saveContent(Path.join([templateDir,obj.key]), obj.val);
+			}
 		}
 
 		// Assume ALL files in this directory are template files

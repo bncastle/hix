@@ -8,7 +8,7 @@ class Generate {
 	}
 
 	public static function Help(headerStart:String, validExtensions:Array<String>):String {
-		var inst:String = Resource.getString("help");
+		var inst:String = Resource.getString("help.txt");
 
 		var params = {HixHeader: headerStart, ValidExtensions: validExtensions.join(" ")};
 		var template = new haxe.Template(inst);
@@ -16,13 +16,13 @@ class Generate {
 	}
 
 	public static function Usage(version:String):String {
-		var data:String = Resource.getString("usage");
+		var data:String = Resource.getString("usage.txt");
 		var params = {programVersion: version, year : Date.now().getFullYear()};
 		var template = new haxe.Template(data);
 		return template.execute(params);
 	}
 
 	public static function DefaultConfig():String {
-		return Resource.getString("default_cfg");
+		return Resource.getString("default.json");
 	}
 }
