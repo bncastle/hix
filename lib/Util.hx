@@ -16,6 +16,7 @@ class Util {
 			if (StringTools.startsWith(args[i], "-") && args[i].indexOf("=") == -1) {
 				// Remove any leading.trailing spaces
 				args[i] = StringTools.trim(args[i]);
+				//Do not store the '-'
 				flags.push(args[i].substr(1));
 				args.splice(i, 1);
 			}

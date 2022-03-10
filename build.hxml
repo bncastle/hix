@@ -6,7 +6,7 @@
 -cp src
 -cpp bin
 -D exe_link
--D analyzer
+-D analyzer-optimize
 # --verbose
 --no-traces
 -dce full

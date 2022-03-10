@@ -14,9 +14,9 @@ import lib.*;
 // Author: Pixelbyte studios
 // Date: December 2020
 //
-// ::hix       -main ${filenameNoExt} ${dirToResources:file_templates}  -cp src -cpp bin -D analyzer --no-traces -dce full
-// ::hix:debug -main ${filenameNoExt} ${dirToResources:file_templates}  -cp src -cpp bin
-// ::hix:run   -main ${filenameNoExt} ${dirToResources:file_templates}  -cp src --interp
+// ::hix       -main ${filenameNoExt} ${dirToResources:text_resources}  -cp src -cpp bin -D analyzer-optimize -D exe_link --dce full --no-traces
+// ::hix:debug -main ${filenameNoExt} ${dirToResources:text_resources}  -cp src -cpp bin
+// ::hix:run   -main ${filenameNoExt} ${dirToResources:text_resources}  -cp src --interp
 //
 
 enum FileGenType {
@@ -39,7 +39,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.62";
+	static inline var VERSION = "0.63";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -77,8 +77,8 @@ class Hix {
 
 	// This is where we store any keyValue pairs we find before the hix header is found
 	var keyValues:Map<String, String>;
-	// This allows us to embed files into an existing file and hix will extract it
-	// to a temporary file for processing
+	// We can embed files into an existing code file and hix will extract it
+	// to a temporary one for processing
 	var embeddedFiles:Map<String, EmbeddedFile>;
 	// If true, then Hix will delete any generated embedded files after execution
 	var deleteGeneratedEmbeddedFiles:Bool = true;
@@ -121,7 +121,7 @@ class Hix {
 	var currentBuildName:String = DEFAULT_BUILD_NAME;
 	var buildMap:Map<String, Array<String>>;
 
-	static function main():Int {
+	public static function main():Void {
 		var inputFile:String = null;
 		var inputBuildName:String = DEFAULT_BUILD_NAME;
 
@@ -130,7 +130,7 @@ class Hix {
 
 		if (Sys.args().length == 0) {
 			Log.log(Generate.Usage(VERSION));
-			return 1;
+			Sys.exit(1);
 		}
 
 		// Get any command line args
@@ -140,6 +140,11 @@ class Hix {
 		var flags = Util.ParseArgOptions(args);
 		var config:Config = Config.Create(HIX_CFG_FILENAME, Generate.DefaultConfig);
 
+		//Display available embedded resources
+		// trace("==Embedded Resources included in this .exe ===");
+		// for (r in haxe.Resource.listNames())
+		// 	trace(r);
+
 		// Check for any command line switches here
 		// See Generate.Usage() for documentation on these flags
 		if (Util.ProcessFlag("h", flags)) {
@@ -147,29 +152,29 @@ class Hix {
 			for (e in ExtMap)
 				validExt.push(e);
 			Log.log(Generate.Help(HEADER_START, validExt));
-			return 0;
+			Sys.exit(0);
 		} else if (Util.ProcessFlag("u", flags)) {
 			Log.log(Generate.Usage(VERSION));
-			return 0;
+			Sys.exit(0);
 		} else if (Util.ProcessFlag("v", flags)) {
 			Log.log(Generate.VersionString(VERSION));
-			return 0;
+			Sys.exit(0);
 		} else if (Util.ProcessFlag("ks", flags)) {
 			// The argument should be the very next one in the args list
 			if (args.length == 0 || args[0].indexOf(':') == -1) {
 				Log.error('Expected a key/value in the form key:value');
-				return 1;
+				Sys.exit(1);
 			} else {
 				var kv = args[0].split(':');
 				var key = StringTools.trim(kv[0]);
 				var val = StringTools.trim(kv[1]);
 				if (kv.length < 2 || val.length == 0) {
 					Log.error('Expected a key/value in the form key:value');
-					return 1;
+					Sys.exit(1);
 				} else {
 					config.Set({key: key, val: val});
 					config.Save();
-					return 0;
+					Sys.exit(0);
 				}
 			}
 		} else if (Util.ProcessFlag("kd", flags)) {
@@ -177,20 +182,20 @@ class Hix {
 			var valid = ~/[A-Za-z_]+/i;
 			if (args.length == 0 || !valid.match(args[0])) {
 				Log.error('Expected the name of a key!');
-				return 1;
+				Sys.exit(1);
 			} else {
 				var key = StringTools.trim(args[0]);
 				config.Set({key: key, val: null});
 				config.Save();
 				Log.log('Key: ${key} deleted from ${config.Filename}');
-				return 0;
+				Sys.exit(0);
 			}
 		} else if (Util.ProcessFlag("kg", flags)) {
 			// The argument should be the very next one in the args list
 			var valid = ~/[A-Za-z_]+/i;
 			if (args.length == 0 || !valid.match(args[0])) {
 				Log.error('Expected the name of a key!');
-				return 1;
+				Sys.exit(1);
 			} else {
 				var key = StringTools.trim(args[0]);
 				var val = config.Get(key);
@@ -198,7 +203,7 @@ class Hix {
 					Log.warn('[Hix] keyname "$key" not found');
 				else
 					Log.log('[Hix] found key:$key => $val');
-				return 0;
+				Sys.exit(0);
 			}
 		}
 		if (Util.ProcessFlag("g", flags)) {
@@ -213,7 +218,7 @@ class Hix {
 				Log.log("Valid templates:");
 				container.print_vaild();
 				// Log.error("Must specify type!");
-				return 1;
+				Sys.exit(1);
 			}
 			
 			//Grab the directory in which to generate the new file
@@ -229,19 +234,19 @@ class Hix {
 						var editor = config.Get("editor");
 						//TODO: Check if the specified editor actually exists
 						if (editor != null) {
-							return Sys.command('$editor $filePath');
+							Sys.exit(Sys.command('$editor $filePath'));
 						}
 					}
-					return 0;
+					Sys.exit(0);
 				}
 				else
-					return -1;
+					Sys.exit(-1);
 			}
 			else{
 				Log.error('Must specify an output filename!');
-				return 1;
+				Sys.exit(1);
 			}
-			return -1;
+			Sys.exit(-1);
 		}
 
 		// Should we not delete generatedEmbeddedFiles?
@@ -256,7 +261,7 @@ class Hix {
 				inputFile = Util.FindFirstFileInValidExts(cwd, ExtMap);
 				if (inputFile == null) {
 					Log.log(Generate.Usage(VERSION));
-					return 1;
+					Sys.exit(0);
 				} else
 					Log.log('Trying file: $inputFile');
 			}
@@ -270,13 +275,13 @@ class Hix {
 		// Are we missing an input file?
 		if (inputFile == null) {
 			Log.error('Unable to find any valid files!');
-			return 1;
+			Sys.exit(0);
 		}
 
 		// Check if file exists
 		if (!FileSystem.exists(inputFile)) {
 			Log.error('File: $inputFile does not exist!');
-			return 1;
+			Sys.exit(0);
 		}
 
 		// Start with the default comment analyzer
@@ -299,7 +304,7 @@ class Hix {
 			} else {
 				Log.log('[Hix] Currently only supports cleaning for .c and .cpp files.');
 			}
-			return 1;
+			Sys.exit(0);
 		}
 
 		// Now parse the file and try to do something
@@ -315,19 +320,19 @@ class Hix {
 			} else {
 				Log.error('No build instructions found for: $inputFile');
 			}
-			return 1;
+			Sys.exit(0);
 		}
 
 		if (h.Succeeded) {
 			trace("File successfully parsed. Executing...");
-			return h.Execute(inputBuildName, config);
+			Sys.exit(h.Execute(inputBuildName, config));
 		} else if (!h.FoundHeader) {
 			Log.error("Unable to find a hix header!");
-			return 1;
+			Sys.exit(0);
 		} else {
 			trace('Parser State: ${h.StateName}');
 			Log.error("There was a problem!");
-			return 1;
+			Sys.exit(0);
 		}
 	}
 
