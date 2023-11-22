@@ -8,5 +8,5 @@
 -D exe_link
 -D analyzer-optimize
 # --verbose
---no-traces
+-D no-traces
 -dce full

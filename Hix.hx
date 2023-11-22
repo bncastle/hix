@@ -39,7 +39,7 @@ enum FileDelType {
 // multiline: --[[  ]]--
 
 class Hix {
-	static inline var VERSION = "0.63";
+	static inline var VERSION = "0.64";
 	// The header string that must be present in the file so we know to parse the compiler args
 	static inline var COMMAND_PREFIX = "::";
 	static inline var HEADER_START = COMMAND_PREFIX + "hix";
@@ -64,7 +64,8 @@ class Hix {
 		"js" => "node.exe",
 		"ts" => "tsc.exe",
 		"lua" => "lua.exe",
-		"zig" => "zig.exe"
+		"zig" => "zig.exe",
+		"go" => "go.exe",
 	];
 	static var CommentType:StringMap<Comment> = [
 		"default" => new Comment(~/^\s*\/\//, ~/\/\*/, ~/\*\//),
