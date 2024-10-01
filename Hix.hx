@@ -14,7 +14,7 @@ import lib.*;
 // Author: Pixelbyte studios
 // Date: December 2020
 //
-// ::hix       -main ${filenameNoExt} ${dirToResources:text_resources}  -cp src -cpp bin -D analyzer-optimize -D exe_link --dce full --no-traces
+// ::hix       -main ${filenameNoExt} ${dirToResources:text_resources}  -cp src -cpp bin -D analyzer-optimize -D exe_link --dce full -D no-traces
 // ::hix:debug -main ${filenameNoExt} ${dirToResources:text_resources}  -cp src -cpp bin
 // ::hix:run   -main ${filenameNoExt} ${dirToResources:text_resources}  -cp src --interp
 //
@@ -66,7 +66,9 @@ class Hix {
 		"lua" => "lua.exe",
 		"zig" => "zig.exe",
 		"go" => "go.exe",
+		"odin" => "odin.exe",
 	];
+	
 	static var CommentType:StringMap<Comment> = [
 		"default" => new Comment(~/^\s*\/\//, ~/\/\*/, ~/\*\//),
 		"lua" => new Comment(~/^--/, ~/--\[\[/, ~/]]--/)
