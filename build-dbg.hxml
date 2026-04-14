@@ -1,6 +1,15 @@
--main Hix
+# Entry point
+-main Hix 
+-cp src
+
+# Resource embedding
 --resource text_resources/default.json
 --resource text_resources/help.txt
 --resource text_resources/usage.txt
--cp src
+
+# Target output
 -cpp bin
+
+# Windows Binary flags
+-D HXCPP_M64
+# --verbose

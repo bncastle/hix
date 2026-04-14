@@ -1,12 +1,20 @@
-#https://github.com/HaxeFoundation/hxcpp/blob/master/docs/build_xml/Defines.md
+# Entry point
 -main Hix 
+-cp src
+
+# Resource embedding
 --resource text_resources/default.json
 --resource text_resources/help.txt
 --resource text_resources/usage.txt
--cp src
+
+# Target output
 -cpp bin
--D exe_link
--D analyzer-optimize
-# --verbose
--D no-traces
+
+# Release optimizations
 -dce full
+-D analyzer-optimize
+-D release
+-D no-traces
+
+# Windows Binary flags
+-D HXCPP_M64
